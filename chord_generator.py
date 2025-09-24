@@ -518,6 +518,7 @@ class ColorTreeDisplayApp:
         self.midi_generator = MIDIScaleGenerator()
         self.color_tree_levels = []
         self.display_mode = "intervals"  # "intervals" or "notes"
+        self.blue_tone = "classic"  # "classic", "navy", "royal", "sky"
         
         # Inizializza i bottoni
         self.intervals_btn = None
@@ -547,6 +548,9 @@ class ColorTreeDisplayApp:
         
         # Switch per modalità visualizzazione
         self.create_display_mode_switch(controls_frame, 0, 2)
+        
+        # Selettore tonalità blu
+        self.create_blue_tone_selector(controls_frame, 0, 3)
         
         # Frame per la visualizzazione della Color Tree - layout orizzontale
         self.tree_frame = ttk.Frame(main_frame)
@@ -592,6 +596,23 @@ class ColorTreeDisplayApp:
         # Inizializza lo stato dei bottoni
         self.update_button_states()
     
+    def create_blue_tone_selector(self, parent, row, column):
+        """Crea il selettore per le tonalità di blu"""
+        # Frame contenitore
+        tone_frame = tk.Frame(parent, bg='#f0f0f0')
+        tone_frame.grid(row=row, column=column, padx=(10, 0))
+        
+        # Label
+        ttk.Label(tone_frame, text="Tonalità:", font=('Arial', 10)).pack(side='left', padx=(0, 5))
+        
+        # Combobox per le tonalità
+        self.blue_tone_var = tk.StringVar(value="Classic")
+        tone_combo = ttk.Combobox(tone_frame, textvariable=self.blue_tone_var,
+                                 values=["Classic", "Navy", "Royal", "Sky"],
+                                 state="readonly", width=10)
+        tone_combo.pack(side='left')
+        tone_combo.bind('<<ComboboxSelected>>', self.on_blue_tone_change)
+    
     def set_intervals_mode(self):
         """Imposta la modalità intervalli"""
         self.display_mode = "intervals"
@@ -618,6 +639,18 @@ class ColorTreeDisplayApp:
     def on_root_note_change(self, event=None):
         """Gestisce il cambio della nota radice"""
         del event  # Ignora il parametro event non utilizzato
+        self.generate_color_tree()
+    
+    def on_blue_tone_change(self, event=None):
+        """Gestisce il cambio della tonalità blu"""
+        del event  # Ignora il parametro event non utilizzato
+        tone_map = {
+            "Classic": "classic",
+            "Navy": "navy", 
+            "Royal": "royal",
+            "Sky": "sky"
+        }
+        self.blue_tone = tone_map.get(self.blue_tone_var.get(), "classic")
         self.generate_color_tree()
     
     def on_sound_cell_click(self, sound_cell: SoundCell):
@@ -680,8 +713,10 @@ class ColorTreeDisplayApp:
     
     def _create_sound_cell_widget(self, parent, sound_cell: SoundCell, position: int):
         """Crea un widget per visualizzare una sound cell"""
-        # Tutte le sound cells hanno sfondo bianco
-        bg_color = 'white'
+        # Calcola il colore basato sulla posizione (da scuro a sinistra a chiaro a destra)
+        # Per il livello 12, usa 12 come numero totale, altrimenti usa il livello
+        total_cells = 12 if sound_cell.level == 12 else sound_cell.level
+        bg_color = self._get_position_color(sound_cell.level, position, total_cells)
         
         # Calcola la larghezza in base al livello
         if sound_cell.level == 12:
@@ -784,6 +819,84 @@ class ColorTreeDisplayApp:
             return '#E0E0E0'  # Brillante
         else:
             return '#808080'  # Neutro
+    
+    def _get_position_color(self, level: int, position: int, total_cells: int) -> str:
+        """Calcola il colore basato sulla posizione e sulla tonalità blu selezionata"""
+        del level  # Non utilizzato ma mantenuto per compatibilità
+        if total_cells <= 1:
+            return self._get_single_cell_color()
+        
+        # Calcola il rapporto di posizione (0.0 = sinistra, 1.0 = destra)
+        position_ratio = position / (total_cells - 1) if total_cells > 1 else 0.5
+        
+        # Ottiene i parametri HSV basati sulla tonalità selezionata
+        hue_start, hue_end, sat_start, sat_end, val_start, val_end = self._get_blue_tone_params()
+        
+        # Calcola i valori HSV per questa posizione
+        hue = hue_start - (position_ratio * (hue_start - hue_end))
+        saturation = sat_start - (position_ratio * (sat_start - sat_end))
+        value = val_start + (position_ratio * (val_end - val_start))
+        
+        # Converte HSV a RGB
+        return self._hsv_to_hex(hue, saturation, value)
+    
+    def _get_single_cell_color(self) -> str:
+        """Restituisce il colore per celle singole basato sulla tonalità"""
+        tone_colors = {
+            "classic": "#0059E8",  # Blu specifico richiesto
+            "navy": "#0059E8",     # Blu specifico richiesto
+            "royal": "#0059E8",    # Blu specifico richiesto
+            "sky": "#0059E8"       # Blu specifico richiesto
+        }
+        return tone_colors.get(self.blue_tone, "#0059E8")
+    
+    def _get_blue_tone_params(self):
+        """Restituisce i parametri HSV per la tonalità blu selezionata"""
+        # #0059E8 convertito in HSV: H=217, S=100, V=91
+        base_hue = 217  # Tonalità del blu #0059E8
+        base_sat = 100  # Saturazione del blu #0059E8
+        base_val = 91   # Luminosità del blu #0059E8
+        
+        tone_params = {
+            "classic": (base_hue, 200, base_sat, 30, base_val, 90),  # #0059E8 -> Celestino
+            "navy": (base_hue, 200, base_sat, 25, base_val, 80),     # #0059E8 -> Azzurro chiaro
+            "royal": (base_hue, 200, base_sat, 35, base_val, 85),    # #0059E8 -> Azzurro reale
+            "sky": (base_hue, 200, base_sat, 20, base_val, 95)       # #0059E8 -> Azzurro cielo
+        }
+        return tone_params.get(self.blue_tone, tone_params["classic"])
+    
+    def _hsv_to_hex(self, h: float, s: float, v: float) -> str:
+        """Converte HSV a colore hex"""
+        h = h / 360.0
+        s = s / 100.0
+        v = v / 100.0
+        
+        if s == 0:
+            # Grigio
+            rgb = [int(v * 255)] * 3
+        else:
+            i = int(h * 6)
+            f = h * 6 - i
+            p = v * (1 - s)
+            q = v * (1 - s * f)
+            t = v * (1 - s * (1 - f))
+            
+            if i == 0:
+                rgb = [v, t, p]
+            elif i == 1:
+                rgb = [q, v, p]
+            elif i == 2:
+                rgb = [p, v, t]
+            elif i == 3:
+                rgb = [p, q, v]
+            elif i == 4:
+                rgb = [t, p, v]
+            else:
+                rgb = [v, p, q]
+        
+        # Converte a hex
+        r, g, b = [int(x * 255) for x in rgb]
+        return f"#{r:02x}{g:02x}{b:02x}"
     
     
     def run(self):
