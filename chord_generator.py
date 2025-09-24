@@ -505,9 +505,9 @@ class ColorTreeDisplayApp:
                     bg=bg_color, font=('Arial', 8, 'bold')).pack(expand=True)
         else:
             tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
-                    bg=bg_color, font=('Arial', 6, 'bold')).pack(side='left')
+                    bg=bg_color, font=('Arial', 7, 'bold')).pack(side='left')
             tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
-                    bg=bg_color, font=('Arial', 6, 'bold')).pack(side='right')
+                    bg=bg_color, font=('Arial', 7, 'bold')).pack(side='right')
         
         # Rappresentazione degli intervalli (centro) - bilanciata
         circle_frame = tk.Frame(main_cell, bg=bg_color, height=55)
@@ -528,7 +528,7 @@ class ColorTreeDisplayApp:
             text = ".".join(notes)
         
         # Per il livello 12, usa un font più piccolo per adattare tutto il contenuto
-        font_size = 6 if sound_cell.level == 12 else 7
+        font_size = 7 if sound_cell.level == 12 else 8
         tk.Label(circle_frame, text=text, bg=bg_color, 
                 font=('Arial', font_size, 'bold')).pack(expand=True)
         
