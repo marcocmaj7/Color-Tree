@@ -434,7 +434,7 @@ class ColorTreeDisplayApp:
         bg_color = 'white'
         
         # Frame principale della sound cell - dimensioni bilanciate e centrate
-        main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=70, height=55)
+        main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=90, height=70)
         main_cell.grid(row=0, column=position, padx=0, pady=1, sticky='')
         main_cell.pack_propagate(False)  # Mantiene le dimensioni fisse
         
