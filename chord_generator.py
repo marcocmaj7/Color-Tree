@@ -307,7 +307,7 @@ class ColorTreeDisplayApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Color Tree")
-        self.root.geometry("1600x800")
+        self.root.geometry("1600x930")
         self.root.configure(bg='#f0f0f0')
         
         self.generator = ChordGenerator()
