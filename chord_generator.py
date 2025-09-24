@@ -488,7 +488,7 @@ class ColorTreeDisplayApp:
             # Simula la larghezza che avrebbero 12 caselle normali
             cell_width = 130 * 12  # 12 caselle da 130px ciascuna
         else:
-            cell_width = 130  # Larghezza normale per gli altri livelli
+            cell_width = 140  # Larghezza aumentata di 25px (130 + 25 = 155) per tutti gli altri livelli
         
         # Frame principale della sound cell - dimensioni bilanciate e centrate
         main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=cell_width, height=70)
