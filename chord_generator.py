@@ -325,12 +325,40 @@ class MIDIScaleGenerator:
     
     def __init__(self):
         self.initialized = False
+        self.current_sounds = []  # Lista per tenere traccia dei suoni attualmente in riproduzione
+        self.stop_playing = False  # Flag per fermare la riproduzione
+        self.current_thread = None  # Thread attualmente in esecuzione
+        self.playback_id = 0  # ID univoco per ogni riproduzione
         if PYGAME_AVAILABLE:
             try:
                 pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
                 self.initialized = True
             except (OSError, RuntimeError):
                 self.initialized = False
+    
+    def stop_all_sounds(self):
+        """Ferma tutti i suoni attualmente in riproduzione"""
+        if not self.initialized:
+            return
+        
+        try:
+            # Imposta il flag per fermare la riproduzione
+            self.stop_playing = True
+            # Ferma tutti i canali di pygame mixer
+            pygame.mixer.stop()
+            # Ferma tutti i suoni nella lista
+            for sound in self.current_sounds:
+                try:
+                    sound.stop()
+                except:
+                    pass
+            # Pulisce la lista dei suoni attuali
+            self.current_sounds.clear()
+            # Aspetta che il thread corrente finisca (con timeout)
+            if self.current_thread and self.current_thread.is_alive():
+                self.current_thread.join(timeout=0.1)
+        except (OSError, RuntimeError) as e:
+            print(f"Errore nel fermare i suoni: {e}")
     
     def note_to_midi_number(self, note: Note, octave: int = 4) -> int:
         """Converte una nota in numero MIDI"""
@@ -375,11 +403,25 @@ class MIDIScaleGenerator:
             messagebox.showwarning("MIDI", "Pygame non disponibile. Installa pygame per la riproduzione audio.")
             return
         
+        # Ferma tutti i suoni precedenti prima di iniziare la riproduzione
+        self.stop_all_sounds()
+        
+        # Incrementa l'ID di riproduzione per invalidare le riproduzioni precedenti
+        self.playback_id += 1
+        current_playback_id = self.playback_id
+        
+        # Aspetta un momento per assicurarsi che il thread precedente sia fermato
+        time.sleep(0.01)
+        
         def play_notes():
             try:
                 midi_notes = self.generate_scale_notes(sound_cell, octave)
                 
                 for i, midi_note in enumerate(midi_notes):
+                    # Controlla se questa riproduzione è ancora valida
+                    if self.playback_id != current_playback_id:
+                        break
+                        
                     # Calcola la frequenza dalla nota MIDI
                     frequency = 440.0 * (2 ** ((midi_note - 69) / 12.0))
                     
@@ -438,10 +480,19 @@ class MIDIScaleGenerator:
                             wave_val = int(4096 * volume * wave_val)
                             arr.append([wave_val, wave_val])
                     
+                    # Controlla di nuovo se questa riproduzione è ancora valida
+                    if self.playback_id != current_playback_id:
+                        break
+                        
                     # Riproduce il suono
                     sound = pygame.sndarray.make_sound(arr)
                     sound.play()
-                    time.sleep(duration * 0.8)  # Piccola pausa tra le note
+                    # Aggiunge il suono alla lista per il tracking
+                    self.current_sounds.append(sound)
+                    
+                    # Controlla se questa riproduzione è ancora valida durante la pausa
+                    if self.playback_id == current_playback_id:
+                        time.sleep(duration * 0.8)  # Piccola pausa tra le note
                     
             except (OSError, RuntimeError) as e:
                 print(f"Errore nella riproduzione: {e}")
@@ -449,9 +500,9 @@ class MIDIScaleGenerator:
                 print(f"Errore nei dati audio: {e}")
         
         # Esegue la riproduzione in un thread separato
-        thread = threading.Thread(target=play_notes)
-        thread.daemon = True
-        thread.start()
+        self.current_thread = threading.Thread(target=play_notes)
+        self.current_thread.daemon = True
+        self.current_thread.start()
 
 
 class ColorTreeDisplayApp:
