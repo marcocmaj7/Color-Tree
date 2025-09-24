@@ -8,7 +8,6 @@ from tkinter import ttk, messagebox
 from typing import List
 from dataclasses import dataclass
 from enum import Enum
-import math
 
 
 class Note(Enum):
@@ -312,7 +311,6 @@ class ColorTreeDisplayApp:
         
         self.generator = ChordGenerator()
         self.color_tree_levels = []
-        self.display_mode = tk.StringVar(value="notes")  # "notes", "intervals", "circle"
         
         self.setup_ui()
         self.generate_color_tree()
@@ -336,12 +334,8 @@ class ColorTreeDisplayApp:
         root_combo.grid(row=0, column=1, padx=(0, 20))
         root_combo.bind('<<ComboboxSelected>>', self.on_root_note_change)
         
-        # Tipo di visualizzazione - compatto
-        ttk.Label(controls_frame, text="Visualizza:", font=('Arial', 10)).grid(row=0, column=2, padx=(0, 5))
-        ttk.Radiobutton(controls_frame, text="Note", variable=self.display_mode, 
-                       value="notes", command=self.on_display_mode_change).grid(row=0, column=3, padx=(0, 10))
-        ttk.Radiobutton(controls_frame, text="Intervalli", variable=self.display_mode, 
-                       value="intervals", command=self.on_display_mode_change).grid(row=0, column=4)
+        # Mostra sempre gli intervalli
+        ttk.Label(controls_frame, text="Modalità: Intervalli", font=('Arial', 10)).grid(row=0, column=2, padx=(0, 5))
         
         # Frame per la visualizzazione della Color Tree - layout orizzontale
         self.tree_frame = ttk.Frame(main_frame)
@@ -367,9 +361,6 @@ class ColorTreeDisplayApp:
         del event  # Ignora il parametro event non utilizzato
         self.generate_color_tree()
     
-    def on_display_mode_change(self):
-        """Gestisce il cambio della modalità di visualizzazione"""
-        self.display_color_tree()
     
     def generate_color_tree(self):
         """Genera e visualizza la Color Tree"""
@@ -394,20 +385,16 @@ class ColorTreeDisplayApp:
         """Visualizza la Color Tree in formato piramidale - triangolo equilatero centrato"""
         # Inverte l'ordine per mostrare il primo livello in basso
         for level, sound_cells in enumerate(reversed(self.color_tree_levels)):
-            actual_level = len(self.color_tree_levels) - level - 1
-            
             # Frame per ogni livello - centrato per triangolo equilatero
             level_frame = ttk.Frame(self.main_tree_frame)
             level_frame.grid(row=level, column=0, sticky='', 
                            pady=0, padx=0)
             
-            # Configura le colonne per centrare le sound cells con meno spazio
-            num_cells = len(sound_cells)
-            
-            # Non configurare weight per evitare espansione orizzontale delle colonne
+            # Inverte l'ordine delle sound cells per effetto specchio
+            reversed_sound_cells = list(reversed(sound_cells))
             
             # Centra le sound cells direttamente
-            for i, sound_cell in enumerate(sound_cells):
+            for i, sound_cell in enumerate(reversed_sound_cells):
                 self._create_sound_cell_widget(level_frame, sound_cell, i)
     
     def _get_level_description(self, level: int) -> str:
@@ -447,37 +434,20 @@ class ColorTreeDisplayApp:
         tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
                 bg=bg_color, font=('Arial', 6, 'bold')).pack(side='right')
         
-        # Rappresentazione del circolo delle quinte (centro) - bilanciata
+        # Rappresentazione degli intervalli (centro) - bilanciata
         circle_frame = tk.Frame(main_cell, bg=bg_color, height=25)
         circle_frame.pack(fill='both', expand=True, padx=2, pady=1)
         
-        # Mostra le note principali o intervalli essenziali - bilanciati
-        if self.display_mode.get() == "intervals":
-            # Mostra i primi 4 intervalli per leggibilità
-            intervals = sound_cell.get_intervals()[:4]
-            text = ".".join(intervals)
-        else:
-            # Mostra le prime 4 note per leggibilità
-            notes = sound_cell.notes[:4]
-            note_names = {
-                Note.C: "C", Note.C_SHARP: "C#", Note.D: "D", Note.D_SHARP: "D#",
-                Note.E: "E", Note.F: "F", Note.F_SHARP: "F#", Note.G: "G",
-                Note.G_SHARP: "G#", Note.A: "A", Note.A_SHARP: "A#", Note.B: "B"
-            }
-            text = " ".join(note_names[note] for note in notes)
+        # Mostra tutti gli intervalli completi
+        intervals = sound_cell.get_intervals()
+        text = ".".join(intervals)
         
         tk.Label(circle_frame, text=text, bg=bg_color, 
                 font=('Arial', 7, 'bold')).pack(expand=True)
         
-        # Intervalli (in basso) - leggibili
+        # Frame vuoto per mantenere la struttura
         intervals_frame = tk.Frame(main_cell, bg=bg_color, height=12)
         intervals_frame.pack(fill='x', padx=2, pady=1)
-        
-        # Mostra i primi 3 intervalli per leggibilità
-        intervals = sound_cell.get_intervals()[:3]
-        intervals_text = ".".join(intervals)
-        tk.Label(intervals_frame, text=intervals_text, bg=bg_color, 
-                font=('Arial', 5)).pack()
     
     def _get_brightness_color(self, brightness: float) -> str:
         """Converte la luminosità in un colore"""
