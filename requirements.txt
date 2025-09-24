@@ -1,2 +1,4 @@
 tkinter
 Pillow>=9.0.0
+pygame>=2.0.0
+numpy>=1.20.0

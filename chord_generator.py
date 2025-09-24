@@ -8,6 +8,14 @@ from tkinter import ttk, messagebox
 from typing import List
 from dataclasses import dataclass
 from enum import Enum
+import threading
+import time
+
+try:
+    import pygame
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
 
 
 class Note(Enum):
@@ -310,7 +318,112 @@ class ChordGenerator:
                 return 1.0  # Brillante
             else:
                 return 0.5  # Neutro
+
+
+class MIDIScaleGenerator:
+    """Genera e riproduce scale MIDI per le sound cells"""
     
+    def __init__(self):
+        self.initialized = False
+        if PYGAME_AVAILABLE:
+            try:
+                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+                self.initialized = True
+            except (OSError, RuntimeError):
+                self.initialized = False
+    
+    def note_to_midi_number(self, note: Note, octave: int = 4) -> int:
+        """Converte una nota in numero MIDI"""
+        # MIDI note 60 = C4 (Do centrale)
+        return note.value + (octave * 12) + 12
+    
+    def generate_scale_notes(self, sound_cell: 'SoundCell', octave: int = 4) -> List[int]:
+        """Genera le note MIDI per una sound cell"""
+        midi_notes = []
+        for note in sound_cell.notes:
+            midi_notes.append(self.note_to_midi_number(note, octave))
+        return midi_notes
+    
+    def play_scale(self, sound_cell: 'SoundCell', octave: int = 4, duration: float = 0.5):
+        """Riproduce la scala di una sound cell"""
+        if not self.initialized:
+            messagebox.showwarning("MIDI", "Pygame non disponibile. Installa pygame per la riproduzione audio.")
+            return
+        
+        def play_notes():
+            try:
+                midi_notes = self.generate_scale_notes(sound_cell, octave)
+                
+                for i, midi_note in enumerate(midi_notes):
+                    # Calcola la frequenza dalla nota MIDI
+                    frequency = 440.0 * (2 ** ((midi_note - 69) / 12.0))
+                    
+                    # Crea un tono sinusoidale
+                    sample_rate = 22050
+                    frames = int(duration * sample_rate)
+                    arr = []
+                    
+                    # Root note più forte - volume aumentato
+                    volume = 0.8 if i == 0 else 0.6
+                    
+                    # Genera onda sinusoidale usando numpy se disponibile
+                    try:
+                        import numpy as np
+                        t = np.linspace(0, duration, frames, False)
+                        wave = np.sin(2 * np.pi * frequency * t)
+                        
+                        # Aggiunge fade-in e fade-out per evitare click
+                        fade_samples = int(0.01 * sample_rate)  # 10ms di fade
+                        if frames > 2 * fade_samples:
+                            # Fade-in
+                            wave[:fade_samples] *= np.linspace(0, 1, fade_samples)
+                            # Fade-out
+                            wave[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+                        
+                        # Applica envelope per suono più naturale
+                        envelope = np.exp(-t * 2)  # Decadimento esponenziale leggero
+                        wave *= envelope
+                        
+                        # Volume bilanciato per evitare clipping
+                        wave = (wave * 4096 * volume).astype(np.int16)
+                        
+                        # Crea array stereo
+                        stereo_wave = np.column_stack((wave, wave))
+                        arr = stereo_wave
+                    except ImportError:
+                        # Fallback senza numpy
+                        arr = []
+                        for j in range(frames):
+                            time_val = j / sample_rate
+                            # Genera onda sinusoidale semplice
+                            wave_val = np.sin(2 * np.pi * frequency * time_val)
+                            
+                            # Aggiunge fade-in e fade-out
+                            fade_samples = int(0.01 * sample_rate)
+                            if j < fade_samples:
+                                wave_val *= j / fade_samples
+                            elif j >= frames - fade_samples:
+                                wave_val *= (frames - j) / fade_samples
+                            
+                            # Applica envelope
+                            envelope = np.exp(-time_val * 2)
+                            wave_val *= envelope
+                            
+                            wave_val = int(4096 * volume * wave_val)
+                            arr.append([wave_val, wave_val])
+                    
+                    # Riproduce il suono
+                    sound = pygame.sndarray.make_sound(arr)
+                    sound.play()
+                    time.sleep(duration * 0.8)  # Piccola pausa tra le note
+                    
+            except (OSError, RuntimeError) as e:
+                print(f"Errore nella riproduzione: {e}")
+        
+        # Esegue la riproduzione in un thread separato
+        thread = threading.Thread(target=play_notes)
+        thread.daemon = True
+        thread.start()
 
 
 class ColorTreeDisplayApp:
@@ -323,8 +436,13 @@ class ColorTreeDisplayApp:
         self.root.configure(bg='#f0f0f0')
         
         self.generator = ChordGenerator()
+        self.midi_generator = MIDIScaleGenerator()
         self.color_tree_levels = []
         self.display_mode = "intervals"  # "intervals" or "notes"
+        
+        # Inizializza i bottoni
+        self.intervals_btn = None
+        self.notes_btn = None
         
         self.setup_ui()
         self.generate_color_tree()
@@ -423,6 +541,10 @@ class ColorTreeDisplayApp:
         del event  # Ignora il parametro event non utilizzato
         self.generate_color_tree()
     
+    def on_sound_cell_click(self, sound_cell: SoundCell):
+        """Gestisce il click su una sound cell per riprodurre la scala MIDI"""
+        self.midi_generator.play_scale(sound_cell)
+    
     
     def generate_color_tree(self):
         """Genera e visualizza la Color Tree"""
@@ -494,6 +616,11 @@ class ColorTreeDisplayApp:
         main_cell.grid(row=0, column=position, padx=0, pady=1, sticky='')
         main_cell.pack_propagate(False)  # Mantiene le dimensioni fisse
         
+        # Aggiunge il click handler per la riproduzione MIDI
+        main_cell.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+        main_cell.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+        main_cell.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
+        
         # Numeri delle quinte (in alto) - leggibili
         fifths_frame = tk.Frame(main_cell, bg=bg_color, height=12)
         fifths_frame.pack(fill='x', padx=2, pady=1)
@@ -528,12 +655,23 @@ class ColorTreeDisplayApp:
             text = "-".join(notes)
             font_size = 8  # Font size per le note (diminuito di 1)
         
-        tk.Label(circle_frame, text=text, bg=bg_color, 
-                font=('Arial', font_size, 'bold')).pack(expand=True)
+        main_label = tk.Label(circle_frame, text=text, bg=bg_color, 
+                font=('Arial', font_size, 'bold'))
+        main_label.pack(expand=True)
+        
+        # Aggiunge click handler anche al label principale
+        main_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+        main_label.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+        main_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         # Frame vuoto per mantenere la struttura
         intervals_frame = tk.Frame(main_cell, bg=bg_color, height=12)
         intervals_frame.pack(fill='x', padx=2, pady=1)
+        
+        # Aggiunge click handler anche al frame vuoto
+        intervals_frame.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+        intervals_frame.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+        intervals_frame.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
     
     def _get_brightness_color(self, brightness: float) -> str:
         """Converte la luminosità in un colore"""
@@ -555,10 +693,8 @@ def main():
     try:
         app = ColorTreeDisplayApp()
         app.run()
-    except (tk.TclError, ImportError, OSError) as e:
+    except (tk.TclError, ImportError, RuntimeError) as e:
         messagebox.showerror("Errore", f"Si è verificato un errore: {str(e)}")
-    except Exception as e:
-        messagebox.showerror("Errore", f"Errore imprevisto: {str(e)}")
 
 
 if __name__ == "__main__":

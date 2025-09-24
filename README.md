@@ -9,6 +9,7 @@ Un'applicazione Python per generare accordi seguendo il circolo delle quinte in 
 - **Interfaccia grafica**: Visualizzazione intuitiva degli accordi generati
 - **Selezione nota radice**: Possibilità di cambiare la nota di partenza
 - **Visualizzazione duale**: Mostra accordi sia come note che come intervalli (T, 3, 5, b7, etc.)
+- **🎵 Riproduzione MIDI**: Clicca su qualsiasi box per ascoltare la scala corrispondente
 - **Interfaccia CLI**: Comando da riga di comando con opzioni avanzate
 - **Architettura modulare**: Codice ben strutturato seguendo le best practices Python
 
@@ -72,12 +73,35 @@ T - 3 - 5
    ```bash
    pip install -r requirements.txt
    ```
+   
+   Oppure usa lo script di installazione automatica:
+   ```bash
+   python install_dependencies.py
+   ```
+
+### Dipendenze per la funzionalità MIDI
+
+Per la riproduzione audio, sono necessarie le seguenti librerie:
+- `pygame>=2.0.0` - Per la riproduzione audio
+- `numpy>=1.20.0` - Per l'elaborazione dei segnali audio
 
 ## Utilizzo
 
 ### Esecuzione dell'applicazione
 ```bash
 python chord_generator.py
+```
+
+### Funzionalità MIDI
+
+L'applicazione ora supporta la riproduzione audio delle scale:
+- **Clicca su qualsiasi box** per ascoltare la scala corrispondente
+- Le note vengono riprodotte in sequenza con la nota radice più forte
+- La riproduzione avviene in un thread separato per non bloccare l'interfaccia
+
+### Test della funzionalità MIDI
+```bash
+python test_midi.py
 ```
 
 ### Esecuzione da riga di comando
@@ -156,11 +180,13 @@ b7 - 4 - T    4 - T - 5    T - 5 - 2
 
 ## Sviluppi Futuri
 
-- [ ] Esportazione degli accordi in formato MIDI
+- [x] ~~Esportazione degli accordi in formato MIDI~~ ✅ Implementato
 - [ ] Visualizzazione delle note sul pentagramma
 - [ ] Generazione di progressioni armoniche
 - [ ] Supporto per diverse tonalità e modi
 - [ ] Integrazione con sintetizzatori
+- [ ] Controlli di volume e velocità per la riproduzione MIDI
+- [ ] Salvataggio delle scale in file MIDI
 
 ## Contributi
 
