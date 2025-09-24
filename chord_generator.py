@@ -125,7 +125,7 @@ class SoundCell:
         
         for note in self.notes:
             if note == self.root:
-                intervals.append("1")  # Root
+                intervals.append("T")  # Root
             else:
                 # Calcola la distanza in semitoni dalla nota radice
                 semitones = (note.value - self.root.value) % 12
@@ -137,7 +137,7 @@ class SoundCell:
     def _semitones_to_interval(self, semitones: int) -> str:
         """Converte semitoni in nome dell'intervallo"""
         interval_map = {
-            0: "1",      # Root
+            0: "T",      # Root
             1: "b2",     # Seconda minore
             2: "2",      # Seconda maggiore
             3: "b3",     # Terza minore
@@ -190,7 +190,8 @@ class ChordGenerator:
         - Livello 1: 1 sound cell (solo root)
         - Livello 2: 2 sound cells (quinte sotto e sopra)
         - ...
-        - Livello 12: 12 sound cells (scala cromatica completa)
+        - Livello 11: 11 sound cells
+        - Livello 12: 1 sound cell (scala cromatica completa)
         """
         levels = []
         
@@ -205,8 +206,8 @@ class ChordGenerator:
             brightness=0.5  # Neutro
         )])
         
-        # Livelli 2-12: Costruzione piramidale
-        for level in range(2, 13):
+        # Livelli 2-11: Costruzione piramidale
+        for level in range(2, 12):
             current_level = []
             
             # Calcola il numero di sound cells per questo livello
@@ -236,6 +237,18 @@ class ChordGenerator:
                 current_level.append(sound_cell)
             
             levels.append(current_level)
+        
+        # Livello 12: Una singola sound cell con la scala cromatica completa
+        chromatic_scale = list(Note)  # Tutte le 12 note cromatiche
+        levels.append([SoundCell(
+            notes=chromatic_scale,
+            root=root_note,
+            level=12,
+            position=0,
+            fifths_below=0,  # Non applicabile per la scala cromatica
+            fifths_above=0,  # Non applicabile per la scala cromatica
+            brightness=0.5   # Neutro per la scala cromatica completa
+        )])
         
         return levels
     
@@ -311,6 +324,7 @@ class ColorTreeDisplayApp:
         
         self.generator = ChordGenerator()
         self.color_tree_levels = []
+        self.display_mode = "intervals"  # "intervals" or "notes"
         
         self.setup_ui()
         self.generate_color_tree()
@@ -334,8 +348,8 @@ class ColorTreeDisplayApp:
         root_combo.grid(row=0, column=1, padx=(0, 20))
         root_combo.bind('<<ComboboxSelected>>', self.on_root_note_change)
         
-        # Mostra sempre gli intervalli
-        ttk.Label(controls_frame, text="Modalità: Intervalli", font=('Arial', 10)).grid(row=0, column=2, padx=(0, 5))
+        # Switch per modalità visualizzazione
+        self.create_display_mode_switch(controls_frame, 0, 2)
         
         # Frame per la visualizzazione della Color Tree - layout orizzontale
         self.tree_frame = ttk.Frame(main_frame)
@@ -355,6 +369,54 @@ class ColorTreeDisplayApp:
         main_frame.rowconfigure(3, weight=1)
         self.tree_frame.columnconfigure(0, weight=1)
         self.tree_frame.rowconfigure(0, weight=1)
+    
+    def create_display_mode_switch(self, parent, row, column):
+        """Crea due bottoni eleganti per alternare tra intervalli e note"""
+        # Frame contenitore per i bottoni
+        switch_frame = tk.Frame(parent, bg='#f0f0f0')
+        switch_frame.grid(row=row, column=column, padx=(0, 5))
+        
+        # Bottone per intervalli
+        self.intervals_btn = tk.Button(switch_frame, text="123", 
+                                     font=('Arial', 8, 'bold'), 
+                                     width=3, height=1,
+                                     relief='raised', bd=1,
+                                     command=self.set_intervals_mode)
+        self.intervals_btn.pack(side='left', padx=(0, 2))
+        
+        # Bottone per note
+        self.notes_btn = tk.Button(switch_frame, text="♪", 
+                                  font=('Arial', 10, 'bold'), 
+                                  width=3, height=1,
+                                  relief='raised', bd=1,
+                                  command=self.set_notes_mode)
+        self.notes_btn.pack(side='left')
+        
+        # Inizializza lo stato dei bottoni
+        self.update_button_states()
+    
+    def set_intervals_mode(self):
+        """Imposta la modalità intervalli"""
+        self.display_mode = "intervals"
+        self.update_button_states()
+        self.generate_color_tree()
+    
+    def set_notes_mode(self):
+        """Imposta la modalità note"""
+        self.display_mode = "notes"
+        self.update_button_states()
+        self.generate_color_tree()
+    
+    def update_button_states(self):
+        """Aggiorna lo stato visivo dei bottoni"""
+        if self.display_mode == "intervals":
+            # Bottone intervalli attivo
+            self.intervals_btn.config(relief='sunken', bg='#4CAF50', fg='white')
+            self.notes_btn.config(relief='raised', bg='#F5F5F5', fg='#666666')
+        else:
+            # Bottone note attivo
+            self.notes_btn.config(relief='sunken', bg='#2196F3', fg='white')
+            self.intervals_btn.config(relief='raised', bg='#F5F5F5', fg='#666666')
     
     def on_root_note_change(self, event=None):
         """Gestisce il cambio della nota radice"""
@@ -411,7 +473,7 @@ class ColorTreeDisplayApp:
             9: "Sym",
             10: "Complex",
             11: "Ext",
-            12: "Chromatic"
+            12: "Chromatic Scale"
         }
         return descriptions.get(level, f"L{level}")
     
@@ -420,8 +482,16 @@ class ColorTreeDisplayApp:
         # Tutte le sound cells hanno sfondo bianco
         bg_color = 'white'
         
+        # Calcola la larghezza in base al livello
+        if sound_cell.level == 12:
+            # Per il livello 12, calcola la larghezza per occupare tutto lo spazio
+            # Simula la larghezza che avrebbero 12 caselle normali
+            cell_width = 130 * 12  # 12 caselle da 130px ciascuna
+        else:
+            cell_width = 130  # Larghezza normale per gli altri livelli
+        
         # Frame principale della sound cell - dimensioni bilanciate e centrate
-        main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=90, height=70)
+        main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=cell_width, height=70)
         main_cell.grid(row=0, column=position, padx=0, pady=1, sticky='')
         main_cell.pack_propagate(False)  # Mantiene le dimensioni fisse
         
@@ -429,21 +499,38 @@ class ColorTreeDisplayApp:
         fifths_frame = tk.Frame(main_cell, bg=bg_color, height=12)
         fifths_frame.pack(fill='x', padx=2, pady=1)
         
-        tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
-                bg=bg_color, font=('Arial', 6, 'bold')).pack(side='left')
-        tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
-                bg=bg_color, font=('Arial', 6, 'bold')).pack(side='right')
+        if sound_cell.level == 12:
+            # Per il livello 12, mostra "Chromatic Scale" al centro
+            tk.Label(fifths_frame, text="Chromatic Scale", 
+                    bg=bg_color, font=('Arial', 8, 'bold')).pack(expand=True)
+        else:
+            tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
+                    bg=bg_color, font=('Arial', 6, 'bold')).pack(side='left')
+            tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
+                    bg=bg_color, font=('Arial', 6, 'bold')).pack(side='right')
         
         # Rappresentazione degli intervalli (centro) - bilanciata
-        circle_frame = tk.Frame(main_cell, bg=bg_color, height=25)
+        circle_frame = tk.Frame(main_cell, bg=bg_color, height=55)
         circle_frame.pack(fill='both', expand=True, padx=2, pady=1)
         
-        # Mostra tutti gli intervalli completi
-        intervals = sound_cell.get_intervals()
-        text = ".".join(intervals)
+        # Mostra intervalli o note in base alla modalità selezionata
+        if self.display_mode == "intervals":
+            intervals = sound_cell.get_intervals()
+            text = ".".join(intervals)
+        else:
+            # Mostra le note musicali
+            note_names = {
+                Note.C: "C", Note.C_SHARP: "C#", Note.D: "D", Note.D_SHARP: "D#",
+                Note.E: "E", Note.F: "F", Note.F_SHARP: "F#", Note.G: "G",
+                Note.G_SHARP: "G#", Note.A: "A", Note.A_SHARP: "A#", Note.B: "B"
+            }
+            notes = [note_names[note] for note in sound_cell.notes]
+            text = ".".join(notes)
         
+        # Per il livello 12, usa un font più piccolo per adattare tutto il contenuto
+        font_size = 6 if sound_cell.level == 12 else 7
         tk.Label(circle_frame, text=text, bg=bg_color, 
-                font=('Arial', 7, 'bold')).pack(expand=True)
+                font=('Arial', font_size, 'bold')).pack(expand=True)
         
         # Frame vuoto per mantenere la struttura
         intervals_frame = tk.Frame(main_cell, bg=bg_color, height=12)
