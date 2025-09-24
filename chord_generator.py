@@ -502,7 +502,7 @@ class ColorTreeDisplayApp:
         if sound_cell.level == 12:
             # Per il livello 12, mostra "Chromatic Scale" al centro
             tk.Label(fifths_frame, text="Chromatic Scale", 
-                    bg=bg_color, font=('Arial', 8, 'bold')).pack(expand=True)
+                    bg=bg_color, font=('Arial', 9, 'bold')).pack(expand=True)
         else:
             tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
                     bg=bg_color, font=('Arial', 7, 'bold')).pack(side='left')
@@ -528,7 +528,7 @@ class ColorTreeDisplayApp:
             text = ".".join(notes)
         
         # Per il livello 12, usa un font più piccolo per adattare tutto il contenuto
-        font_size = 7 if sound_cell.level == 12 else 8
+        font_size = 6 if sound_cell.level == 12 else 7
         tk.Label(circle_frame, text=text, bg=bg_color, 
                 font=('Arial', font_size, 'bold')).pack(expand=True)
         
