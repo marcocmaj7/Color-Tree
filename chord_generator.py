@@ -516,6 +516,7 @@ class ColorTreeDisplayApp:
         if self.display_mode == "intervals":
             intervals = sound_cell.get_intervals()
             text = "-".join(intervals)
+            font_size = 9  # Font size per gli intervalli
         else:
             # Mostra le note musicali
             note_names = {
@@ -525,9 +526,8 @@ class ColorTreeDisplayApp:
             }
             notes = [note_names[note] for note in sound_cell.notes]
             text = "-".join(notes)
+            font_size = 8  # Font size per le note (diminuito di 1)
         
-        # Usa la stessa dimensione del font per tutti i livelli
-        font_size = 7
         tk.Label(circle_frame, text=text, bg=bg_color, 
                 font=('Arial', font_size, 'bold')).pack(expand=True)
         
