@@ -23,6 +23,13 @@ try:
 except ImportError:
     MIDI_AVAILABLE = False
 
+# Import per la finestra creativa
+try:
+    from creative_chord_window import CreativeChordWindow
+    CREATIVE_WINDOW_AVAILABLE = True
+except ImportError:
+    CREATIVE_WINDOW_AVAILABLE = False
+
 
 class Note(Enum):
     """Enum per le 12 note cromatiche"""
@@ -652,6 +659,12 @@ class ColorTreeDisplayApp:
         self.midi_port_var = None
         self.midi_combo = None
         
+        # Variabile per la sound cell selezionata per la finestra creativa
+        self.selected_sound_cell = None
+        
+        # Inizializza il bottone creativo per evitare errori di linting
+        self.creative_btn = None
+        
         self.setup_ui()
         self.generate_color_tree()
     
@@ -688,6 +701,11 @@ class ColorTreeDisplayApp:
         self.midi_frame = ttk.Frame(main_frame)
         self.midi_frame.grid(row=2, column=0, sticky=(tk.E, tk.S), pady=(5, 0))
         self.create_midi_controls()
+        
+        # Frame per il bottone creativo in basso a sinistra
+        self.creative_frame = ttk.Frame(main_frame)
+        self.creative_frame.grid(row=2, column=0, sticky=(tk.W, tk.S), pady=(5, 0))
+        self.create_creative_controls()
         
         # Frame principale per la Color Tree - centrato per triangolo equilatero
         self.main_tree_frame = ttk.Frame(self.tree_frame)
@@ -773,6 +791,27 @@ class ColorTreeDisplayApp:
         # Inizializza le porte MIDI
         self.refresh_midi_ports()
     
+    def create_creative_controls(self):
+        """Crea i controlli per la finestra creativa in basso a sinistra"""
+        # Frame contenitore per i controlli creativi
+        creative_container = tk.Frame(self.creative_frame, bg='#f0f0f0')
+        creative_container.pack(side='left', padx=(10, 0), pady=(0, 5))
+        
+        # Bottone per aprire la finestra creativa
+        self.creative_btn = tk.Button(creative_container, text="🎵 Creative", 
+                                     font=('Arial', 10, 'bold'), 
+                                     bg='#FF9800', fg='white',
+                                     command=self.open_creative_window,
+                                     width=12, height=2)
+        self.creative_btn.pack(side='left')
+        
+        # Label di istruzioni
+        instruction_label = tk.Label(creative_container, 
+                                   text="Click a chord, then click Creative", 
+                                   font=('Arial', 8), 
+                                   fg='#666666', bg='#f0f0f0')
+        instruction_label.pack(side='left', padx=(10, 0))
+    
     def refresh_midi_ports(self):
         """Aggiorna la lista delle porte MIDI disponibili"""
         if not MIDI_AVAILABLE:
@@ -843,6 +882,9 @@ class ColorTreeDisplayApp:
     
     def on_sound_cell_click(self, sound_cell: SoundCell):
         """Gestisce il click su una sound cell per riprodurre la scala MIDI"""
+        # Memorizza la sound cell selezionata per la finestra creativa
+        self.selected_sound_cell = sound_cell
+        
         # Riproduzione audio tramite pygame
         self.midi_generator.play_scale(sound_cell)
         
@@ -856,6 +898,27 @@ class ColorTreeDisplayApp:
             except (OSError, RuntimeError, AttributeError) as e:
                 print(f"Errore nell'invio MIDI: {e}")
     
+    
+    def open_creative_window(self):
+        """Apre la finestra per la riproduzione creativa degli accordi"""
+        if not CREATIVE_WINDOW_AVAILABLE:
+            messagebox.showerror("Error", "Creative window module not available. Please check the installation.")
+            return
+        
+        if self.selected_sound_cell is None:
+            messagebox.showwarning("No Selection", "Please click on a chord first to select it for creative playback.")
+            return
+        
+        try:
+            # Crea e mostra la finestra creativa
+            creative_window = CreativeChordWindow(
+                self.root, 
+                self.selected_sound_cell, 
+                self.midi_generator
+            )
+            creative_window.show()
+        except (ImportError, RuntimeError, OSError) as e:
+            messagebox.showerror("Error", f"Failed to open creative window: {str(e)}")
     
     def generate_color_tree(self):
         """Genera e visualizza la Color Tree"""
