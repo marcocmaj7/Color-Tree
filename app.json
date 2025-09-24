@@ -1,0 +1,26 @@
+{
+  "name": "Chord Generator",
+  "description": "Un'applicazione Python per generare accordi seguendo il circolo delle quinte",
+  "repository": "https://github.com/your-username/chord-generator",
+  "logo": "https://raw.githubusercontent.com/your-username/chord-generator/main/logo.png",
+  "keywords": ["python", "music", "chords", "circle-of-fifths", "tkinter"],
+  "success_url": "/",
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "env": {
+    "PYTHONPATH": {
+      "description": "Python path for the application",
+      "value": "."
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "free"
+    }
+  },
+  "addons": []
+}

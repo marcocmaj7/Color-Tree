@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  chord-generator:
+    build: .
+    container_name: chord-generator-app
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./output:/app/output
+    networks:
+      - chord-network
+    # Per sistemi Linux con X11
+    # command: python chord_generator.py
+    
+  # Servizio per test
+  chord-generator-test:
+    build: .
+    container_name: chord-generator-test
+    command: python test_chord_generator.py
+    volumes:
+      - .:/app
+    networks:
+      - chord-network
+
+  # Servizio per CLI
+  chord-generator-cli:
+    build: .
+    container_name: chord-generator-cli
+    command: python cli_example.py --root C --levels 5 --verbose
+    volumes:
+      - ./output:/app/output
+    networks:
+      - chord-network
+
+networks:
+  chord-network:
+    driver: bridge
+
+volumes:
+  output:

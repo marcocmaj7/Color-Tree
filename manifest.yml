@@ -1,0 +1,13 @@
+applications:
+- name: chord-generator
+  memory: 256M
+  instances: 1
+  path: .
+  buildpack: python_buildpack
+  env:
+    PYTHONPATH: .
+    FLASK_APP: chord_generator.py
+  services:
+    - chord-generator-db
+  routes:
+    - route: chord-generator.cfapps.io
