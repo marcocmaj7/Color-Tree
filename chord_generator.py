@@ -17,6 +17,12 @@ try:
 except ImportError:
     PYGAME_AVAILABLE = False
 
+try:
+    import mido
+    MIDI_AVAILABLE = True
+except ImportError:
+    MIDI_AVAILABLE = False
+
 
 class Note(Enum):
     """Enum per le 12 note cromatiche"""
@@ -350,7 +356,7 @@ class MIDIScaleGenerator:
             for sound in self.current_sounds:
                 try:
                     sound.stop()
-                except:
+                except (OSError, RuntimeError):
                     pass
             # Pulisce la lista dei suoni attuali
             self.current_sounds.clear()
@@ -505,6 +511,122 @@ class MIDIScaleGenerator:
         self.current_thread.start()
 
 
+class MIDIOutput:
+    """Gestisce l'output MIDI verso dispositivi esterni come DAW"""
+    
+    def __init__(self):
+        self.initialized = False
+        self.output_port = None
+        self.available_ports = []
+        self.selected_port = None
+        
+        if MIDI_AVAILABLE:
+            try:
+                self._refresh_ports()
+                self.initialized = True
+            except (OSError, RuntimeError, AttributeError) as e:
+                print(f"Errore nell'inizializzazione MIDI: {e}")
+                self.initialized = False
+    
+    def _refresh_ports(self):
+        """Aggiorna la lista delle porte MIDI disponibili"""
+        if not MIDI_AVAILABLE:
+            return
+        
+        try:
+            self.available_ports = mido.get_output_names()
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nel refresh delle porte MIDI: {e}")
+            self.available_ports = []
+    
+    def get_available_ports(self):
+        """Restituisce la lista delle porte MIDI disponibili"""
+        self._refresh_ports()
+        return self.available_ports
+    
+    def set_output_port(self, port_name):
+        """Imposta la porta di output MIDI"""
+        if not MIDI_AVAILABLE:
+            return False
+        
+        try:
+            if self.output_port:
+                self.output_port.close()
+            
+            if port_name and port_name in self.available_ports:
+                self.output_port = mido.open_output(port_name)
+                self.selected_port = port_name
+                return True
+            else:
+                self.output_port = None
+                self.selected_port = None
+                return False
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'apertura della porta MIDI {port_name}: {e}")
+            return False
+    
+    def send_note_on(self, note, velocity=64, channel=0):
+        """Invia un messaggio Note On"""
+        if not self.initialized or not self.output_port:
+            return False
+        
+        try:
+            msg = mido.Message('note_on', channel=channel, note=note, velocity=velocity)
+            self.output_port.send(msg)
+            return True
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'invio Note On: {e}")
+            return False
+    
+    def send_note_off(self, note, channel=0):
+        """Invia un messaggio Note Off"""
+        if not self.initialized or not self.output_port:
+            return False
+        
+        try:
+            msg = mido.Message('note_off', channel=channel, note=note, velocity=0)
+            self.output_port.send(msg)
+            return True
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'invio Note Off: {e}")
+            return False
+    
+    def send_chord(self, midi_notes, duration=0.5, channel=0):
+        """Invia un accordo MIDI"""
+        if not self.initialized or not self.output_port:
+            return False
+        
+        try:
+            # Invia tutte le note dell'accordo
+            for note in midi_notes:
+                self.send_note_on(note, channel=channel)
+            
+            # Programma lo spegnimento delle note dopo la durata specificata
+            def stop_notes():
+                time.sleep(duration)
+                for note in midi_notes:
+                    self.send_note_off(note, channel=channel)
+            
+            # Esegue in un thread separato per non bloccare l'UI
+            thread = threading.Thread(target=stop_notes)
+            thread.daemon = True
+            thread.start()
+            
+            return True
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'invio dell'accordo MIDI: {e}")
+            return False
+    
+    def close(self):
+        """Chiude la connessione MIDI"""
+        if self.output_port:
+            try:
+                self.output_port.close()
+            except (OSError, RuntimeError, AttributeError):
+                pass
+            self.output_port = None
+
+
 class ColorTreeDisplayApp:
     """Interfaccia grafica per visualizzare la Color Tree"""
     
@@ -516,6 +638,7 @@ class ColorTreeDisplayApp:
         
         self.generator = ChordGenerator()
         self.midi_generator = MIDIScaleGenerator()
+        self.midi_output = MIDIOutput()
         self.color_tree_levels = []
         self.display_mode = "intervals"  # "intervals" or "notes"
         self.blue_tone = "classic"  # "classic", "navy", "royal", "sky"
@@ -523,6 +646,11 @@ class ColorTreeDisplayApp:
         # Inizializza i bottoni
         self.intervals_btn = None
         self.notes_btn = None
+        
+        # Inizializza le variabili per i controlli
+        self.blue_tone_var = None
+        self.midi_port_var = None
+        self.midi_combo = None
         
         self.setup_ui()
         self.generate_color_tree()
@@ -555,6 +683,11 @@ class ColorTreeDisplayApp:
         # Frame per la visualizzazione della Color Tree - layout orizzontale
         self.tree_frame = ttk.Frame(main_frame)
         self.tree_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Frame per i controlli MIDI in basso a destra
+        self.midi_frame = ttk.Frame(main_frame)
+        self.midi_frame.grid(row=2, column=0, sticky=(tk.E, tk.S), pady=(5, 0))
+        self.create_midi_controls()
         
         # Frame principale per la Color Tree - centrato per triangolo equilatero
         self.main_tree_frame = ttk.Frame(self.tree_frame)
@@ -613,6 +746,61 @@ class ColorTreeDisplayApp:
         tone_combo.pack(side='left')
         tone_combo.bind('<<ComboboxSelected>>', self.on_blue_tone_change)
     
+    def create_midi_controls(self):
+        """Crea i controlli MIDI in basso a destra"""
+        # Frame contenitore per i controlli MIDI
+        midi_container = tk.Frame(self.midi_frame, bg='#f0f0f0')
+        midi_container.pack(side='right', padx=(0, 10), pady=(0, 5))
+        
+        # Label MIDI
+        midi_label = tk.Label(midi_container, text="MIDI:", 
+                             font=('Arial', 10, 'bold'), bg='#f0f0f0')
+        midi_label.pack(side='left', padx=(0, 5))
+        
+        # Combobox per la selezione della porta MIDI
+        self.midi_port_var = tk.StringVar(value="Nessuna porta")
+        self.midi_combo = ttk.Combobox(midi_container, textvariable=self.midi_port_var,
+                                      state="readonly", width=20)
+        self.midi_combo.pack(side='left', padx=(0, 5))
+        self.midi_combo.bind('<<ComboboxSelected>>', self.on_midi_port_change)
+        
+        # Bottone per aggiornare le porte MIDI
+        refresh_btn = tk.Button(midi_container, text="🔄", 
+                               font=('Arial', 8), width=2, height=1,
+                               command=self.refresh_midi_ports)
+        refresh_btn.pack(side='left', padx=(2, 0))
+        
+        # Inizializza le porte MIDI
+        self.refresh_midi_ports()
+    
+    def refresh_midi_ports(self):
+        """Aggiorna la lista delle porte MIDI disponibili"""
+        if not MIDI_AVAILABLE:
+            self.midi_combo['values'] = ["MIDI non disponibile"]
+            self.midi_combo.set("MIDI non disponibile")
+            return
+        
+        ports = self.midi_output.get_available_ports()
+        if not ports:
+            self.midi_combo['values'] = ["Nessuna porta MIDI"]
+            self.midi_combo.set("Nessuna porta MIDI")
+        else:
+            port_list = ["Nessuna porta"] + ports
+            self.midi_combo['values'] = port_list
+            self.midi_combo.set("Nessuna porta")
+    
+    def on_midi_port_change(self, event=None):
+        """Gestisce il cambio della porta MIDI"""
+        del event  # Ignora il parametro event non utilizzato
+        selected_port = self.midi_port_var.get()
+        
+        if selected_port == "Nessuna porta" or selected_port == "Nessuna porta MIDI" or selected_port == "MIDI non disponibile":
+            self.midi_output.set_output_port(None)
+        else:
+            success = self.midi_output.set_output_port(selected_port)
+            if not success:
+                messagebox.showerror("Errore MIDI", f"Impossibile connettersi alla porta: {selected_port}")
+    
     def set_intervals_mode(self):
         """Imposta la modalità intervalli"""
         self.display_mode = "intervals"
@@ -655,7 +843,18 @@ class ColorTreeDisplayApp:
     
     def on_sound_cell_click(self, sound_cell: SoundCell):
         """Gestisce il click su una sound cell per riprodurre la scala MIDI"""
+        # Riproduzione audio tramite pygame
         self.midi_generator.play_scale(sound_cell)
+        
+        # Output MIDI verso DAW se configurato
+        if self.midi_output.initialized and self.midi_output.output_port:
+            try:
+                # Genera le note MIDI per l'accordo
+                midi_notes = self.midi_generator.generate_scale_notes(sound_cell)
+                # Invia l'accordo MIDI
+                self.midi_output.send_chord(midi_notes, duration=2.0)
+            except (OSError, RuntimeError, AttributeError) as e:
+                print(f"Errore nell'invio MIDI: {e}")
     
     
     def generate_color_tree(self):
@@ -901,7 +1100,17 @@ class ColorTreeDisplayApp:
     
     def run(self):
         """Avvia l'applicazione"""
+        # Configura la chiusura pulita dell'applicazione
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.mainloop()
+    
+    def on_closing(self):
+        """Gestisce la chiusura dell'applicazione"""
+        # Chiude la connessione MIDI
+        if hasattr(self, 'midi_output'):
+            self.midi_output.close()
+        # Chiude l'applicazione
+        self.root.destroy()
 
 
 def main():
