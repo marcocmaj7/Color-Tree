@@ -335,13 +335,38 @@ class MIDIScaleGenerator:
     def note_to_midi_number(self, note: Note, octave: int = 4) -> int:
         """Converte una nota in numero MIDI"""
         # MIDI note 60 = C4 (Do centrale)
+        # C4 = 60, quindi C = 0, C# = 1, ..., B = 11
+        # Per ottava 4: base = 4 * 12 = 48, quindi C4 = 48 + 0 = 48
+        # Ma MIDI C4 = 60, quindi dobbiamo aggiungere 12
         return note.value + (octave * 12) + 12
     
     def generate_scale_notes(self, sound_cell: 'SoundCell', octave: int = 4) -> List[int]:
-        """Genera le note MIDI per una sound cell"""
+        """Genera le note MIDI per una sound cell con ottave corrette"""
         midi_notes = []
-        for note in sound_cell.notes:
-            midi_notes.append(self.note_to_midi_number(note, octave))
+        
+        if not sound_cell.notes:
+            return midi_notes
+        
+        # La prima nota (root) è sempre nell'ottava specificata
+        root_note = sound_cell.notes[0]
+        root_midi = self.note_to_midi_number(root_note, octave)
+        midi_notes.append(root_midi)
+        
+        # Per le altre note, calcola l'ottava corretta basandosi sulla distanza dalla root
+        for note in sound_cell.notes[1:]:
+            # Calcola la distanza in semitoni dalla root (senza modulo per vedere la direzione)
+            semitones_from_root = note.value - root_note.value
+            
+            # Se la distanza è negativa (nota più bassa), usa un'ottava più alta
+            if semitones_from_root < 0:
+                target_octave = octave + 1
+            else:
+                target_octave = octave
+            
+            # Calcola il numero MIDI
+            note_midi = self.note_to_midi_number(note, target_octave)
+            midi_notes.append(note_midi)
+        
         return midi_notes
     
     def play_scale(self, sound_cell: 'SoundCell', octave: int = 4, duration: float = 0.5):
@@ -392,11 +417,12 @@ class MIDIScaleGenerator:
                         arr = stereo_wave
                     except ImportError:
                         # Fallback senza numpy
+                        import math
                         arr = []
                         for j in range(frames):
                             time_val = j / sample_rate
                             # Genera onda sinusoidale semplice
-                            wave_val = np.sin(2 * np.pi * frequency * time_val)
+                            wave_val = math.sin(2 * math.pi * frequency * time_val)
                             
                             # Aggiunge fade-in e fade-out
                             fade_samples = int(0.01 * sample_rate)
@@ -406,7 +432,7 @@ class MIDIScaleGenerator:
                                 wave_val *= (frames - j) / fade_samples
                             
                             # Applica envelope
-                            envelope = np.exp(-time_val * 2)
+                            envelope = math.exp(-time_val * 2)
                             wave_val *= envelope
                             
                             wave_val = int(4096 * volume * wave_val)
@@ -419,6 +445,8 @@ class MIDIScaleGenerator:
                     
             except (OSError, RuntimeError) as e:
                 print(f"Errore nella riproduzione: {e}")
+            except (ValueError, TypeError) as e:
+                print(f"Errore nei dati audio: {e}")
         
         # Esegue la riproduzione in un thread separato
         thread = threading.Thread(target=play_notes)
@@ -624,20 +652,44 @@ class ColorTreeDisplayApp:
         # Numeri delle quinte (in alto) - leggibili
         fifths_frame = tk.Frame(main_cell, bg=bg_color, height=12)
         fifths_frame.pack(fill='x', padx=2, pady=1)
+        # Aggiunge click handler al frame delle quinte
+        fifths_frame.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+        fifths_frame.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+        fifths_frame.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         if sound_cell.level == 12:
             # Per il livello 12, mostra "Chromatic Scale" al centro
-            tk.Label(fifths_frame, text="Chromatic Scale", 
-                    bg=bg_color, font=('Arial', 9, 'bold')).pack(expand=True)
+            chromatic_label = tk.Label(fifths_frame, text="Chromatic Scale", 
+                    bg=bg_color, font=('Arial', 9, 'bold'))
+            chromatic_label.pack(expand=True)
+            # Aggiunge click handler al label
+            chromatic_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+            chromatic_label.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+            chromatic_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         else:
-            tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
-                    bg=bg_color, font=('Arial', 7, 'bold')).pack(side='left')
-            tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
-                    bg=bg_color, font=('Arial', 7, 'bold')).pack(side='right')
+            left_label = tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
+                    bg=bg_color, font=('Arial', 7, 'bold'))
+            left_label.pack(side='left')
+            # Aggiunge click handler al label sinistro
+            left_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+            left_label.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+            left_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
+            
+            right_label = tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
+                    bg=bg_color, font=('Arial', 7, 'bold'))
+            right_label.pack(side='right')
+            # Aggiunge click handler al label destro
+            right_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+            right_label.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+            right_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         # Rappresentazione degli intervalli (centro) - bilanciata
         circle_frame = tk.Frame(main_cell, bg=bg_color, height=55)
         circle_frame.pack(fill='both', expand=True, padx=2, pady=1)
+        # Aggiunge click handler al frame centrale
+        circle_frame.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
+        circle_frame.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
+        circle_frame.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         # Mostra intervalli o note in base alla modalità selezionata
         if self.display_mode == "intervals":
