@@ -43,6 +43,12 @@ class PatternType(Enum):
     DIMINUENDO = "diminuendo"
     ACCENT_FIRST = "accent_first"
     SWING = "swing"
+    
+    # Pattern Random
+    RANDOM_CHAOS = "random_chaos"
+    RANDOM_RHYTHM = "random_rhythm"
+    RANDOM_VOLUME = "random_volume"
+    RANDOM_CHANGING = "random_changing"
 
 
 @dataclass
@@ -65,6 +71,58 @@ class PatternEngine:
         self.stop_requested = False
         self.current_thread: Optional[threading.Thread] = None
         self.playback_id = 0
+        
+        # Parametri dinamici per aggiornamento in tempo reale
+        self.current_sound_cell = None
+        self.current_pattern_type = None
+        self.current_octave = 4
+        self.current_base_duration = 0.3
+        self.current_loop = False
+        self.current_reverse = False
+        self.current_duration_octaves = 1
+        self.current_playback_speed = 1.0
+        self.current_bpm = 120
+        self.param_lock = threading.Lock()
+    
+    def update_parameters(self, sound_cell: SoundCell = None, pattern_type: PatternType = None,
+                         octave: int = None, base_duration: float = None,
+                         loop: bool = None, reverse: bool = None, duration_octaves: int = None,
+                         playback_speed: float = None, bpm: int = None):
+        """Aggiorna i parametri in tempo reale durante la riproduzione"""
+        with self.param_lock:
+            if sound_cell is not None:
+                self.current_sound_cell = sound_cell
+            if pattern_type is not None:
+                self.current_pattern_type = pattern_type
+            if octave is not None:
+                self.current_octave = octave
+            if base_duration is not None:
+                self.current_base_duration = base_duration
+            if loop is not None:
+                self.current_loop = loop
+            if reverse is not None:
+                self.current_reverse = reverse
+            if duration_octaves is not None:
+                self.current_duration_octaves = duration_octaves
+            if playback_speed is not None:
+                self.current_playback_speed = playback_speed
+            if bpm is not None:
+                self.current_bpm = bpm
+    
+    def get_current_parameters(self):
+        """Ottiene i parametri correnti in modo thread-safe"""
+        with self.param_lock:
+            return {
+                'sound_cell': self.current_sound_cell,
+                'pattern_type': self.current_pattern_type,
+                'octave': self.current_octave,
+                'base_duration': self.current_base_duration,
+                'loop': self.current_loop,
+                'reverse': self.current_reverse,
+                'duration_octaves': self.current_duration_octaves,
+                'playback_speed': self.current_playback_speed,
+                'bpm': self.current_bpm
+            }
         
     def generate_pattern_notes(self, sound_cell: SoundCell, pattern_type: PatternType, 
                              octave: int = 4, base_duration: float = 0.3) -> List[NoteEvent]:
@@ -116,6 +174,14 @@ class PatternEngine:
             return self._pattern_accent_first(base_notes, base_duration)
         elif pattern_type == PatternType.SWING:
             return self._pattern_swing(base_notes, base_duration)
+        elif pattern_type == PatternType.RANDOM_CHAOS:
+            return self._pattern_random_chaos(base_notes, base_duration)
+        elif pattern_type == PatternType.RANDOM_RHYTHM:
+            return self._pattern_random_rhythm(base_notes, base_duration)
+        elif pattern_type == PatternType.RANDOM_VOLUME:
+            return self._pattern_random_volume(base_notes, base_duration)
+        elif pattern_type == PatternType.RANDOM_CHANGING:
+            return self._pattern_random_changing(base_notes, base_duration)
         else:
             return self._pattern_up(base_notes, base_duration)  # Default
     
@@ -550,13 +616,110 @@ class PatternEngine:
                 ))
         return result
     
+    # Pattern Random
+    def _pattern_random_chaos(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
+        """Caos totale: ordine, durata e volume completamente casuali"""
+        result = []
+        # Mescola completamente le note
+        shuffled_notes = notes.copy()
+        random.shuffle(shuffled_notes)
+        
+        for note in shuffled_notes:
+            # Durata casuale tra 0.1x e 2.0x la durata base
+            random_duration = base_duration * random.uniform(0.1, 2.0)
+            # Volume casuale tra 0.3 e 1.0
+            random_volume = random.uniform(0.3, 1.0)
+            # Ritardo casuale tra 0 e 0.5 secondi
+            random_delay = random.uniform(0, 0.5)
+            
+            result.append(NoteEvent(
+                note=note.note,
+                octave=note.octave,
+                duration=random_duration,
+                volume=random_volume,
+                delay=random_delay
+            ))
+        return result
+    
+    def _pattern_random_rhythm(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
+        """Ritmo casuale: note normali ma con durate e pause imprevedibili"""
+        result = []
+        for i, note in enumerate(notes):
+            # Durata casuale ma più controllata
+            rhythm_multiplier = random.choice([0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
+            random_duration = base_duration * rhythm_multiplier
+            
+            # Pausa casuale dopo ogni nota (50% probabilità)
+            random_delay = random.uniform(0, 0.3) if random.random() < 0.5 else 0
+            
+            result.append(NoteEvent(
+                note=note.note,
+                octave=note.octave,
+                duration=random_duration,
+                volume=note.volume,
+                delay=random_delay
+            ))
+        return result
+    
+    def _pattern_random_volume(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
+        """Volume casuale: note normali ma con volumi drammaticamente diversi"""
+        result = []
+        for note in notes:
+            # Volume molto variabile: da pianissimo a fortissimo
+            volume_levels = [0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]
+            random_volume = random.choice(volume_levels)
+            
+            # Leggera variazione di durata per enfatizzare il volume
+            duration_multiplier = 0.8 + (random_volume * 0.4)  # Durata correlata al volume
+            random_duration = base_duration * duration_multiplier
+            
+            result.append(NoteEvent(
+                note=note.note,
+                octave=note.octave,
+                duration=random_duration,
+                volume=random_volume
+            ))
+        return result
+    
+    def _pattern_random_changing(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
+        """Cambiamento continuo: ogni nota può essere sostituita casualmente"""
+        result = []
+        for i, note in enumerate(notes):
+            # 30% di probabilità di sostituire la nota con una casuale
+            if random.random() < 0.3:
+                # Sceglie una nota casuale dallo stesso accordo
+                random_note = random.choice(notes)
+                selected_note = random_note.note
+                selected_octave = random_note.octave
+            else:
+                selected_note = note.note
+                selected_octave = note.octave
+            
+            # Durata leggermente variabile
+            random_duration = base_duration * random.uniform(0.8, 1.2)
+            
+            # Volume con piccole variazioni
+            random_volume = note.volume * random.uniform(0.7, 1.0)
+            
+            result.append(NoteEvent(
+                note=selected_note,
+                octave=selected_octave,
+                duration=random_duration,
+                volume=random_volume
+            ))
+        return result
+    
     def play_pattern(self, sound_cell: SoundCell, pattern_type: PatternType, 
                     octave: int = 4, base_duration: float = 0.3, 
                     loop: bool = False, reverse: bool = False, 
-                    duration_octaves: int = 1, callback: Optional[Callable] = None):
+                    duration_octaves: int = 1, playback_speed: float = 1.0, 
+                    bpm: int = 120, callback: Optional[Callable] = None):
         """Riproduce un pattern con le note specificate"""
         if self.is_playing:
             self.stop_pattern()
+        
+        # Inizializza i parametri correnti
+        self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm)
         
         self.is_playing = True
         self.is_looping = loop
@@ -567,15 +730,29 @@ class PatternEngine:
         def play_worker():
             try:
                 while not self.stop_requested and (not loop or self.is_looping):
+                    # Ottieni i parametri correnti (potrebbero essere cambiati durante la riproduzione)
+                    params = self.get_current_parameters()
+                    current_sound_cell = params['sound_cell']
+                    current_pattern_type = params['pattern_type']
+                    current_octave = params['octave']
+                    current_base_duration = params['base_duration']
+                    current_reverse = params['reverse']
+                    current_duration_octaves = params['duration_octaves']
+                    current_playback_speed = params['playback_speed']
+                    current_bpm = params['bpm']
+                    
+                    if not current_sound_cell or not current_pattern_type:
+                        break
+                    
                     # Genera le note del pattern per ogni ottava di durata
                     all_pattern_notes = []
-                    for octave_offset in range(duration_octaves):
-                        current_octave = octave + octave_offset
-                        pattern_notes = self.generate_pattern_notes(sound_cell, pattern_type, current_octave, base_duration)
+                    for octave_offset in range(current_duration_octaves):
+                        octave_to_use = current_octave + octave_offset
+                        pattern_notes = self.generate_pattern_notes(current_sound_cell, current_pattern_type, octave_to_use, current_base_duration)
                         all_pattern_notes.extend(pattern_notes)
                     
                     # Applica reverse se richiesto
-                    if reverse:
+                    if current_reverse:
                         all_pattern_notes = list(reversed(all_pattern_notes))
                     
                     # Riproduce le note
@@ -586,27 +763,28 @@ class PatternEngine:
                         # Calcola il numero MIDI
                         midi_note = self.midi_generator.note_to_midi_number(note_event.note, note_event.octave)
                         
-                        # Applica il ritardo se specificato
+                        # Applica il ritardo se specificato (applica la velocità di riproduzione)
                         if note_event.delay > 0:
-                            time.sleep(note_event.delay)
+                            time.sleep(note_event.delay / current_playback_speed)
                         
                         if self.stop_requested or self.playback_id != current_playback_id:
                             break
                         
-                        # Riproduce la nota
-                        self._play_single_note(midi_note, note_event.duration, note_event.volume)
+                        # Riproduce la nota (applica la velocità di riproduzione)
+                        adjusted_duration = note_event.duration / current_playback_speed
+                        self._play_single_note(midi_note, adjusted_duration, note_event.volume)
                         
-                        # Pausa tra le note
+                        # Pausa tra le note (applica la velocità di riproduzione)
                         if not self.stop_requested and self.playback_id == current_playback_id:
-                            time.sleep(base_duration * 0.1)
+                            time.sleep((current_base_duration * 0.1) / current_playback_speed)
                     
                     # Se non è in loop, esce dopo una volta
                     if not loop:
                         break
                     
-                    # Pausa tra le ripetizioni del pattern
+                    # Pausa tra le ripetizioni del pattern (applica la velocità di riproduzione)
                     if not self.stop_requested and self.is_looping:
-                        time.sleep(base_duration * 0.5)
+                        time.sleep((current_base_duration * 0.5) / current_playback_speed)
                 
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"Errore nella riproduzione del pattern: {e}")

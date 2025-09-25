@@ -662,6 +662,9 @@ class ColorTreeDisplayApp:
         # Variabile per la sound cell selezionata per la finestra creativa
         self.selected_sound_cell = None
         
+        # Riferimento alla finestra creative per il cambio dinamico di accordo
+        self.creative_window = None
+        
         # Inizializza il bottone creativo per evitare errori di linting
         self.creative_btn = None
         
@@ -885,6 +888,10 @@ class ColorTreeDisplayApp:
         # Memorizza la sound cell selezionata per la finestra creativa
         self.selected_sound_cell = sound_cell
         
+        # Se la finestra creative è aperta, cambia l'accordo in tempo reale
+        if self.creative_window and self.creative_window.is_window_open():
+            self.creative_window.change_chord(sound_cell)
+        
         # Riproduzione audio tramite pygame
         self.midi_generator.play_scale(sound_cell)
         
@@ -910,13 +917,18 @@ class ColorTreeDisplayApp:
             return
         
         try:
-            # Crea e mostra la finestra creativa
-            creative_window = CreativeChordWindow(
-                self.root, 
-                self.selected_sound_cell, 
-                self.midi_generator
-            )
-            creative_window.show()
+            # Se la finestra è già aperta, aggiorna l'accordo
+            if self.creative_window and self.creative_window.is_window_open():
+                self.creative_window.change_chord(self.selected_sound_cell)
+                self.creative_window.show()
+            else:
+                # Crea e mostra la finestra creativa
+                self.creative_window = CreativeChordWindow(
+                    self.root, 
+                    self.selected_sound_cell, 
+                    self.midi_generator
+                )
+                self.creative_window.show()
         except (ImportError, RuntimeError, OSError) as e:
             messagebox.showerror("Error", f"Failed to open creative window: {str(e)}")
     

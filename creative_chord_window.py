@@ -29,6 +29,8 @@ class CreativeChordWindow:
         self.start_octave_var = tk.IntVar(value=4)
         self.duration_octaves_var = tk.IntVar(value=1)
         self.note_duration_var = tk.StringVar(value="Quarter")
+        self.bpm_var = tk.IntVar(value=120)
+        self.playback_speed_var = tk.DoubleVar(value=1.0)
         self.loop_var = tk.BooleanVar(value=False)
         self.reverse_var = tk.BooleanVar(value=False)
         
@@ -43,11 +45,24 @@ class CreativeChordWindow:
         self.start_octave_label = None
         self.duration_octaves_label = None
         self.note_duration_label = None
+        self.bpm_label = None
+        self.playback_speed_label = None
+        
+        # Dizionario per tracciare i pulsanti pattern per l'evidenziazione
+        self.pattern_buttons = {}
         
         # Configurazione stile
         self.setup_styles()
         self.setup_ui()
         self.update_controls()
+        
+        # Evidenzia il pattern predefinito
+        self.highlight_selected_pattern(self.selected_pattern.get())
+        
+        # Inizializza la visualizzazione della velocità e BPM
+        self.update_speed_display()
+        self.update_bpm_display()
+        
         self.setup_keyboard_shortcuts()
         
         # Gestisce la chiusura della finestra
@@ -303,7 +318,48 @@ class CreativeChordWindow:
                                     cursor='hand2',
                                     activebackground='#7f8c8d',
                                     activeforeground='white')
-        self.reverse_btn.pack(side='left', padx=(0, 0))
+        self.reverse_btn.pack(side='left', padx=(0, 10))
+        
+        # Playback Speed Control
+        speed_frame = tk.Frame(button_frame, bg='#f8f9fa')
+        speed_frame.pack(side='left', padx=(0, 0))
+        
+        # Speed label
+        speed_label = tk.Label(speed_frame, text="⚡", 
+                              font=('Segoe UI', 8, 'bold'), 
+                              bg='#f8f9fa', fg='#2c3e50')
+        speed_label.pack(side='left', padx=(0, 2))
+        
+        # Speed down button
+        speed_down = tk.Button(speed_frame, text="◀", 
+                              font=('Segoe UI', 8, 'bold'),
+                              bg='#9b59b6', fg='white',
+                              command=self.decrease_playback_speed,
+                              width=3, height=1,
+                              relief='flat', bd=0,
+                              cursor='hand2',
+                              activebackground='#8e44ad',
+                              activeforeground='white')
+        speed_down.pack(side='left', padx=(0, 2))
+        
+        # Speed value label
+        self.playback_speed_label = tk.Label(speed_frame, text="1.0x", 
+                                            font=('Segoe UI', 9, 'bold'), 
+                                            bg='#9b59b6', fg='white',
+                                            width=4, relief='flat')
+        self.playback_speed_label.pack(side='left', padx=(2, 2))
+        
+        # Speed up button
+        speed_up = tk.Button(speed_frame, text="▶", 
+                            font=('Segoe UI', 8, 'bold'),
+                            bg='#9b59b6', fg='white',
+                            command=self.increase_playback_speed,
+                            width=3, height=1,
+                            relief='flat', bd=0,
+                            cursor='hand2',
+                            activebackground='#8e44ad',
+                            activeforeground='white')
+        speed_up.pack(side='left', padx=(2, 0))
     
     def create_parameter_controls(self, parent):
         """Crea i controlli per i parametri compatti"""
@@ -321,7 +377,7 @@ class CreativeChordWindow:
         
         start_octave_label = tk.Label(start_octave_frame, text="🎼 Start Octave", 
                                      font=('Segoe UI', 9, 'bold'), 
-                                     bg='#f8f9fa', fg='#2c3e50')
+                               bg='#f8f9fa', fg='#2c3e50')
         start_octave_label.pack(anchor='w')
         
         start_octave_controls = tk.Frame(start_octave_frame, bg='#f8f9fa')
@@ -362,7 +418,7 @@ class CreativeChordWindow:
         
         duration_octaves_label = tk.Label(duration_octaves_frame, text="🎵 Duration Octaves", 
                                          font=('Segoe UI', 9, 'bold'), 
-                                         bg='#f8f9fa', fg='#2c3e50')
+                                bg='#f8f9fa', fg='#2c3e50')
         duration_octaves_label.pack(anchor='w')
         
         duration_octaves_controls = tk.Frame(duration_octaves_frame, bg='#f8f9fa')
@@ -388,7 +444,7 @@ class CreativeChordWindow:
         
         duration_octaves_down = tk.Button(duration_octaves_controls, text="▼", 
                                          font=('Segoe UI', 8, 'bold'),
-                                         bg='#e67e22', fg='white',
+                                           bg='#e67e22', fg='white',
                                          command=self.decrease_duration_octaves,
                                          width=3, height=1,
                                          relief='flat', bd=0,
@@ -399,7 +455,7 @@ class CreativeChordWindow:
         
         # Durata Note
         note_duration_frame = tk.Frame(params_frame, bg='#f8f9fa')
-        note_duration_frame.pack(side='left', fill='x', expand=True)
+        note_duration_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
         note_duration_label = tk.Label(note_duration_frame, text="⏱️ Note Duration", 
                                       font=('Segoe UI', 9, 'bold'), 
@@ -419,6 +475,50 @@ class CreativeChordWindow:
                                              font=('Segoe UI', 9))
         note_duration_dropdown.pack(side='left')
         note_duration_dropdown.bind('<<ComboboxSelected>>', self.on_note_duration_change)
+        
+        # BPM Control
+        bpm_frame = tk.Frame(params_frame, bg='#f8f9fa')
+        bpm_frame.pack(side='left', fill='x', expand=True)
+        
+        bpm_label = tk.Label(bpm_frame, text="🎵 BPM", 
+                            font=('Segoe UI', 9, 'bold'), 
+                            bg='#f8f9fa', fg='#2c3e50')
+        bpm_label.pack(anchor='w')
+        
+        bpm_controls = tk.Frame(bpm_frame, bg='#f8f9fa')
+        bpm_controls.pack(fill='x', pady=(2, 0))
+        
+        # Pulsanti freccia per BPM
+        bpm_down = tk.Button(bpm_controls, text="▼", 
+                            font=('Segoe UI', 8, 'bold'),
+                            bg='#27ae60', fg='white',
+                            command=self.decrease_bpm,
+                            width=3, height=1,
+                            relief='flat', bd=0,
+                            cursor='hand2',
+                            activebackground='#229954',
+                            activeforeground='white')
+        bpm_down.pack(side='left', padx=(0, 2))
+        
+        self.bpm_label = tk.Label(bpm_controls, text="120", 
+                                 font=('Segoe UI', 10, 'bold'), 
+                                 bg='#27ae60', fg='white',
+                                 width=4, relief='flat')
+        self.bpm_label.pack(side='left', padx=(2, 2))
+        
+        # Binding per doppio click per inserimento manuale
+        self.bpm_label.bind('<Double-Button-1>', self.on_bpm_double_click)
+        
+        bpm_up = tk.Button(bpm_controls, text="▲", 
+                          font=('Segoe UI', 8, 'bold'),
+                          bg='#27ae60', fg='white',
+                          command=self.increase_bpm,
+                          width=3, height=1,
+                          relief='flat', bd=0,
+                          cursor='hand2',
+                          activebackground='#229954',
+                          activeforeground='white')
+        bpm_up.pack(side='left', padx=(2, 0))
         
         # Aggiorna i valori quando cambiano
         def update_start_octave_value(*_):
@@ -466,6 +566,12 @@ class CreativeChordWindow:
                 ("Diminuendo", "diminuendo", "Volume decrescente"),
                 ("Accent First", "accent_first", "Prima nota accentata"),
                 ("Swing", "swing", "Timing swing")
+            ]),
+            ("Random", [
+                ("Chaos", "random_chaos", "Caos totale - tutto casuale"),
+                ("Random Rhythm", "random_rhythm", "Ritmo imprevedibile"),
+                ("Random Volume", "random_volume", "Volumi drammatici"),
+                ("Changing", "random_changing", "Note che cambiano continuamente")
             ])
         ]
         
@@ -489,11 +595,14 @@ class CreativeChordWindow:
                               activeforeground='white')
                 btn.grid(row=cat_idx, column=pat_idx+1, padx=2, pady=2, sticky='ew')
                 
+                # Salva il riferimento al pulsante per l'evidenziazione
+                self.pattern_buttons[value] = btn
+                
                 # Tooltip for description
                 self.create_tooltip(btn, desc)
         
         # Configure grid weights
-        for i in range(1, 6):  # 5 pattern columns
+        for i in range(1, 7):  # 6 pattern columns (aggiunta categoria Random)
             pattern_frame.grid_columnconfigure(i, weight=1)
     
     def create_tooltip(self, widget, text):
@@ -521,7 +630,20 @@ class CreativeChordWindow:
     def select_pattern(self, pattern_value):
         """Seleziona un pattern"""
         self.selected_pattern.set(pattern_value)
+        self.highlight_selected_pattern(pattern_value)
         self.on_pattern_change()
+        self.update_parameters_realtime()
+    
+    def highlight_selected_pattern(self, selected_value):
+        """Evidenzia il pattern selezionato con colore blu trasparente"""
+        # Reset tutti i pulsanti al colore normale
+        for value, btn in self.pattern_buttons.items():
+            btn.config(bg='#ecf0f1', fg='#2c3e50')
+        
+        # Evidenzia il pattern selezionato
+        if selected_value in self.pattern_buttons:
+            selected_btn = self.pattern_buttons[selected_value]
+            selected_btn.config(bg='#3498db', fg='white')
     
     
     def setup_keyboard_shortcuts(self):
@@ -548,6 +670,7 @@ class CreativeChordWindow:
             self.loop_btn.config(bg='#3498db', fg='white')
         else:
             self.loop_btn.config(bg='#95a5a6', fg='white')
+        self.update_parameters_realtime()
     
     def toggle_reverse(self):
         """Toggle del reverse"""
@@ -556,49 +679,264 @@ class CreativeChordWindow:
             self.reverse_btn.config(bg='#e67e22', fg='white')
         else:
             self.reverse_btn.config(bg='#95a5a6', fg='white')
+        self.update_parameters_realtime()
+    
+    def increase_playback_speed(self):
+        """Aumenta la velocità di riproduzione"""
+        current = self.playback_speed_var.get()
+        if current < 4.0:
+            # Incrementi di 0.25x
+            new_speed = min(4.0, current + 0.25)
+            self.playback_speed_var.set(new_speed)
+            self.update_speed_display()
+            self.update_parameters_realtime()
+    
+    def decrease_playback_speed(self):
+        """Diminuisce la velocità di riproduzione"""
+        current = self.playback_speed_var.get()
+        if current > 0.25:
+            # Decrementi di 0.25x
+            new_speed = max(0.25, current - 0.25)
+            self.playback_speed_var.set(new_speed)
+            self.update_speed_display()
+            self.update_parameters_realtime()
+    
+    def update_speed_display(self):
+        """Aggiorna la visualizzazione della velocità"""
+        speed = self.playback_speed_var.get()
+        self.playback_speed_label.config(text=f"{speed:.2f}x")
+    
+    def increase_bpm(self):
+        """Aumenta il BPM"""
+        current = self.bpm_var.get()
+        if current < 200:
+            self.bpm_var.set(current + 1)
+            self.update_bpm_display()
+            self.update_parameters_realtime()
+    
+    def decrease_bpm(self):
+        """Diminuisce il BPM"""
+        current = self.bpm_var.get()
+        if current > 60:
+            self.bpm_var.set(current - 1)
+            self.update_bpm_display()
+            self.update_parameters_realtime()
+    
+    def update_bpm_display(self):
+        """Aggiorna la visualizzazione del BPM"""
+        bpm = self.bpm_var.get()
+        self.bpm_label.config(text=str(bpm))
+    
+    def on_bpm_double_click(self, event):
+        """Gestisce il doppio click sul label BPM per inserimento manuale"""
+        # Crea una finestra di dialogo per inserire il BPM
+        dialog = tk.Toplevel(self.window)
+        dialog.title("Inserisci BPM")
+        dialog.geometry("300x150")
+        dialog.configure(bg='#f8f9fa')
+        dialog.resizable(False, False)
+        
+        # Centra la finestra
+        dialog.transient(self.window)
+        dialog.grab_set()
+        
+        # Frame principale
+        main_frame = tk.Frame(dialog, bg='#f8f9fa', padx=20, pady=20)
+        main_frame.pack(fill='both', expand=True)
+        
+        # Label di istruzione
+        instruction_label = tk.Label(main_frame, 
+                                   text="Inserisci il nuovo BPM (60-200):", 
+                                   font=('Segoe UI', 10, 'bold'),
+                                   bg='#f8f9fa', fg='#2c3e50')
+        instruction_label.pack(pady=(0, 10))
+        
+        # Entry per il BPM
+        bpm_entry = tk.Entry(main_frame, 
+                            font=('Segoe UI', 12),
+                            width=10,
+                            justify='center',
+                            relief='solid',
+                            bd=1)
+        bpm_entry.pack(pady=(0, 20))
+        bpm_entry.insert(0, str(self.bpm_var.get()))
+        bpm_entry.select_range(0, tk.END)
+        bpm_entry.focus()
+        
+        # Frame per i bottoni
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack()
+        
+        def apply_bpm():
+            try:
+                new_bpm = int(bpm_entry.get())
+                if 60 <= new_bpm <= 200:
+                    self.bpm_var.set(new_bpm)
+                    self.update_bpm_display()
+                    self.update_parameters_realtime()
+                    dialog.destroy()
+                else:
+                    # Mostra errore se BPM fuori range
+                    error_label = tk.Label(main_frame, 
+                                         text="BPM deve essere tra 60 e 200!",
+                                         font=('Segoe UI', 9),
+                                         fg='#e74c3c', bg='#f8f9fa')
+                    error_label.pack(pady=(5, 0))
+            except ValueError:
+                # Mostra errore se non è un numero
+                error_label = tk.Label(main_frame, 
+                                     text="Inserisci un numero valido!",
+                                     font=('Segoe UI', 9),
+                                     fg='#e74c3c', bg='#f8f9fa')
+                error_label.pack(pady=(5, 0))
+        
+        def cancel_bpm():
+            dialog.destroy()
+        
+        # Bottoni
+        apply_btn = tk.Button(button_frame, text="Applica", 
+                             font=('Segoe UI', 9, 'bold'),
+                             bg='#27ae60', fg='white',
+                             command=apply_bpm,
+                             width=8, height=1,
+                             relief='flat', bd=0,
+                             cursor='hand2',
+                             activebackground='#229954',
+                             activeforeground='white')
+        apply_btn.pack(side='left', padx=(0, 10))
+        
+        cancel_btn = tk.Button(button_frame, text="Annulla", 
+                              font=('Segoe UI', 9, 'bold'),
+                              bg='#95a5a6', fg='white',
+                              command=cancel_bpm,
+                              width=8, height=1,
+                              relief='flat', bd=0,
+                              cursor='hand2',
+                              activebackground='#7f8c8d',
+                              activeforeground='white')
+        cancel_btn.pack(side='left')
+        
+        # Binding per Enter e Escape
+        bpm_entry.bind('<Return>', lambda e: apply_bpm())
+        dialog.bind('<Escape>', lambda e: cancel_bpm())
     
     def increase_start_octave(self):
         """Aumenta l'ottava di partenza"""
         current = self.start_octave_var.get()
         if current < 6:
             self.start_octave_var.set(current + 1)
+            self.update_parameters_realtime()
     
     def decrease_start_octave(self):
         """Diminuisce l'ottava di partenza"""
         current = self.start_octave_var.get()
         if current > 2:
             self.start_octave_var.set(current - 1)
+            self.update_parameters_realtime()
     
     def increase_duration_octaves(self):
         """Aumenta le ottave di durata"""
         current = self.duration_octaves_var.get()
-        if current < 3:
+        if current < 7:  # Aumentato da 3 a 5 ottave
             self.duration_octaves_var.set(current + 1)
+            self.update_parameters_realtime()
     
     def decrease_duration_octaves(self):
         """Diminuisce le ottave di durata"""
         current = self.duration_octaves_var.get()
         if current > 1:
             self.duration_octaves_var.set(current - 1)
+            self.update_parameters_realtime()
     
     def on_note_duration_change(self, event=None):
         """Gestisce il cambio di durata nota"""
         duration = self.note_duration_var.get()
         self.log_message(f"Note duration changed to: {duration}")
+        self.update_parameters_realtime()
         # Suppress unused argument warning
         _ = event
     
+    def update_parameters_realtime(self):
+        """Aggiorna i parametri in tempo reale durante la riproduzione"""
+        if self.is_playing:
+            try:
+                # Converte il pattern selezionato in PatternType
+                pattern_type = PatternType(self.selected_pattern.get())
+                
+                # Aggiorna i parametri nel pattern engine
+                self.pattern_engine.update_parameters(
+                    sound_cell=self.sound_cell,
+                    pattern_type=pattern_type,
+                    octave=self.start_octave_var.get(),
+                    base_duration=self.get_note_duration_seconds(),
+                    loop=self.loop_var.get(),
+                    reverse=self.reverse_var.get(),
+                    duration_octaves=self.duration_octaves_var.get(),
+                    playback_speed=self.playback_speed_var.get(),
+                    bpm=self.bpm_var.get()
+                )
+                
+                self.log_message("Parameters updated in real-time")
+            except (ValueError, RuntimeError) as e:
+                self.log_message(f"Error updating parameters: {str(e)}")
+    
+    def change_chord(self, new_sound_cell: SoundCell):
+        """Cambia l'accordo durante la riproduzione"""
+        self.sound_cell = new_sound_cell
+        
+        # Aggiorna le informazioni dell'accordo nell'interfaccia
+        self.update_chord_info()
+        
+        # Se sta riproducendo, aggiorna i parametri in tempo reale
+        if self.is_playing:
+            self.update_parameters_realtime()
+            self.log_message(f"Chord changed to: {new_sound_cell.__str__()}")
+    
+    def update_chord_info(self):
+        """Aggiorna le informazioni dell'accordo nell'interfaccia"""
+        # Trova e aggiorna i label delle informazioni accordo
+        for widget in self.window.winfo_children():
+            self._update_chord_info_recursive(widget)
+    
+    def _update_chord_info_recursive(self, widget):
+        """Aggiorna ricorsivamente le informazioni dell'accordo"""
+        try:
+            if hasattr(widget, 'cget') and widget.cget('text'):
+                text = widget.cget('text')
+                if text.startswith('Chord: '):
+                    widget.config(text=f"Chord: {self.sound_cell.__str__()}")
+                elif text.startswith('Intervals: '):
+                    widget.config(text=f"Intervals: {self.sound_cell.to_intervals_string()}")
+        except (AttributeError, tk.TclError):
+            pass
+        
+        # Continua ricorsivamente per i widget figli
+        try:
+            for child in widget.winfo_children():
+                self._update_chord_info_recursive(child)
+        except (AttributeError, tk.TclError):
+            pass
+    
     def get_note_duration_seconds(self):
-        """Converte la durata nota in secondi"""
+        """Converte la durata nota in secondi considerando il BPM"""
+        # Durata base in secondi per ogni tipo di nota (a 120 BPM)
         duration_map = {
-            "Whole": 2.0,
-            "Half": 1.0,
-            "Quarter": 0.5,
-            "Eighth": 0.25,
-            "Sixteenth": 0.125,
-            "Thirty-Second": 0.0625
+            "Whole": 2.0,      # 4 beats
+            "Half": 1.0,       # 2 beats
+            "Quarter": 0.5,    # 1 beat
+            "Eighth": 0.25,    # 0.5 beats
+            "Sixteenth": 0.125, # 0.25 beats
+            "Thirty-Second": 0.0625 # 0.125 beats
         }
-        return duration_map.get(self.note_duration_var.get(), 0.5)
+        
+        # Durata base per il tipo di nota selezionato
+        base_duration = duration_map.get(self.note_duration_var.get(), 0.5)
+        
+        # Applica il BPM (120 BPM è il riferimento)
+        bpm = self.bpm_var.get()
+        bpm_factor = 120.0 / bpm
+        
+        return base_duration * bpm_factor
     
     
     def on_pattern_change(self):
@@ -638,6 +976,8 @@ class CreativeChordWindow:
                 self.loop_var.get(),
                 self.reverse_var.get(),
                 self.duration_octaves_var.get(),
+                self.playback_speed_var.get(),
+                self.bpm_var.get(),
                 self.on_playback_finished
             )
             
@@ -688,3 +1028,14 @@ class CreativeChordWindow:
         """Mostra la finestra"""
         self.window.lift()
         self.window.focus_force()
+    
+    def get_window(self):
+        """Restituisce la finestra per permettere al parent di accedervi"""
+        return self.window
+    
+    def is_window_open(self):
+        """Controlla se la finestra è ancora aperta"""
+        try:
+            return self.window.winfo_exists()
+        except (tk.TclError, AttributeError):
+            return False
