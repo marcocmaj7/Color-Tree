@@ -26,9 +26,11 @@ class CreativeChordWindow:
         
         # Variabili per i controlli
         self.selected_pattern = tk.StringVar(value="up")
-        self.octave_var = tk.IntVar(value=4)
-        self.duration_var = tk.DoubleVar(value=0.3)
+        self.start_octave_var = tk.IntVar(value=4)
+        self.duration_octaves_var = tk.IntVar(value=1)
+        self.note_duration_var = tk.StringVar(value="Quarter")
         self.loop_var = tk.BooleanVar(value=False)
+        self.reverse_var = tk.BooleanVar(value=False)
         
         # Stato dei controlli
         self.is_playing = False
@@ -36,10 +38,11 @@ class CreativeChordWindow:
         # Inizializza i widget per evitare errori di linting
         self.play_btn = None
         self.stop_btn = None
-        self.loop_check = None
-        self.status_text = None
-        self.octave_value_label = None
-        self.duration_value_label = None
+        self.loop_btn = None
+        self.reverse_btn = None
+        self.start_octave_label = None
+        self.duration_octaves_label = None
+        self.note_duration_label = None
         
         # Configurazione stile
         self.setup_styles()
@@ -115,9 +118,6 @@ class CreativeChordWindow:
         
         # Controlli pattern compatti
         self.create_pattern_controls_compact(right_column)
-        
-        # Area di stato compatta
-        self.create_status_area_compact(right_column)
     
     def create_chord_info_compact(self, parent):
         """Crea informazioni accordo compatte nel titolo"""
@@ -250,129 +250,184 @@ class CreativeChordWindow:
     def create_playback_controls(self, parent):
         """Crea i controlli di riproduzione con design moderno"""
         playback_frame = ttk.LabelFrame(parent, text="🎵 Playback Controls", 
-                                       style='Modern.TLabelframe', padding="15")
+                                       style='Modern.TLabelframe', padding="10")
         playback_frame.pack(fill='x', pady=(0, 15))
         
         # Bottoni di controllo in layout orizzontale
         button_frame = tk.Frame(playback_frame, bg='#f8f9fa')
-        button_frame.pack(fill='x', pady=(0, 10))
+        button_frame.pack(fill='x', pady=(0, 5))
         
-        # Play button con stile moderno
-        self.play_btn = tk.Button(button_frame, text="▶ Play", 
-                                 font=('Segoe UI', 11, 'bold'),
+        # Play button più piccolo
+        self.play_btn = tk.Button(button_frame, text="▶", 
+                                 font=('Segoe UI', 9, 'bold'),
                                  bg='#27ae60', fg='white',
                                  command=self.play_pattern,
-                                 width=10, height=2,
+                                 width=6, height=1,
                                  relief='flat', bd=0,
                                  cursor='hand2',
                                  activebackground='#2ecc71',
                                  activeforeground='white')
-        self.play_btn.pack(side='left', padx=(0, 10))
+        self.play_btn.pack(side='left', padx=(0, 5))
         
-        # Stop button con stile moderno
-        self.stop_btn = tk.Button(button_frame, text="■ Stop", 
-                                 font=('Segoe UI', 11, 'bold'),
+        # Stop button più piccolo
+        self.stop_btn = tk.Button(button_frame, text="■", 
+                                 font=('Segoe UI', 9, 'bold'),
                                  bg='#e74c3c', fg='white',
                                  command=self.stop_pattern,
-                                 width=10, height=2,
+                                 width=6, height=1,
                                  relief='flat', bd=0,
                                  cursor='hand2',
                                  activebackground='#c0392b',
                                  activeforeground='white')
         self.stop_btn.pack(side='left', padx=(0, 10))
         
-        # Loop checkbox con stile moderno
-        self.loop_check = tk.Checkbutton(button_frame, text="🔄 Loop", 
-                                        variable=self.loop_var,
-                                        font=('Segoe UI', 10, 'bold'),
-                                        bg='#f8f9fa', fg='#2c3e50',
-                                        selectcolor='#3498db',
-                                        activebackground='#f8f9fa',
-                                        activeforeground='#2c3e50',
-                                        cursor='hand2')
-        self.loop_check.pack(side='left', padx=(20, 0))
+        # Loop button singolo
+        self.loop_btn = tk.Button(button_frame, text="Loop", 
+                                 font=('Segoe UI', 8, 'bold'),
+                                 bg='#95a5a6', fg='white',
+                                 command=self.toggle_loop,
+                                 width=8, height=1,
+                                 relief='flat', bd=0,
+                                 cursor='hand2',
+                                 activebackground='#7f8c8d',
+                                 activeforeground='white')
+        self.loop_btn.pack(side='left', padx=(0, 5))
         
-        # Istruzioni compatte
-        instruction_label = tk.Label(playback_frame, 
-                                   text="💡 Select pattern → Adjust parameters → Play", 
-                                   font=('Segoe UI', 9, 'italic'), 
-                                   fg='#7f8c8d', bg='#f8f9fa')
-        instruction_label.pack(pady=(5, 0))
+        # Reverse button
+        self.reverse_btn = tk.Button(button_frame, text="Reverse", 
+                                    font=('Segoe UI', 8, 'bold'),
+                                    bg='#95a5a6', fg='white',
+                                    command=self.toggle_reverse,
+                                    width=8, height=1,
+                                    relief='flat', bd=0,
+                                    cursor='hand2',
+                                    activebackground='#7f8c8d',
+                                    activeforeground='white')
+        self.reverse_btn.pack(side='left', padx=(0, 0))
     
     def create_parameter_controls(self, parent):
-        """Crea i controlli per i parametri allineati su una riga"""
+        """Crea i controlli per i parametri compatti"""
         param_frame = ttk.LabelFrame(parent, text="⚙️ Parameters", 
-                                    style='Modern.TLabelframe', padding="15")
+                                    style='Modern.TLabelframe', padding="10")
         param_frame.pack(fill='x', pady=(0, 15))
         
-        # Frame principale per i parametri allineati
+        # Frame principale per i parametri in griglia
         params_frame = tk.Frame(param_frame, bg='#f8f9fa')
         params_frame.pack(fill='x')
         
-        # Ottava - Lato sinistro
-        octave_frame = tk.Frame(params_frame, bg='#f8f9fa')
-        octave_frame.pack(side='left', fill='x', expand=True, padx=(0, 20))
+        # Ottava Start
+        start_octave_frame = tk.Frame(params_frame, bg='#f8f9fa')
+        start_octave_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        octave_label = tk.Label(octave_frame, text="🎼 Octave", 
-                               font=('Segoe UI', 10, 'bold'), 
-                               bg='#f8f9fa', fg='#2c3e50')
-        octave_label.pack(anchor='w')
+        start_octave_label = tk.Label(start_octave_frame, text="🎼 Start Octave", 
+                                     font=('Segoe UI', 9, 'bold'), 
+                                     bg='#f8f9fa', fg='#2c3e50')
+        start_octave_label.pack(anchor='w')
         
-        octave_controls = tk.Frame(octave_frame, bg='#f8f9fa')
-        octave_controls.pack(fill='x', pady=(5, 0))
+        start_octave_controls = tk.Frame(start_octave_frame, bg='#f8f9fa')
+        start_octave_controls.pack(fill='x', pady=(2, 0))
         
-        octave_scale = tk.Scale(octave_controls, from_=2, to=6, 
-                               variable=self.octave_var, orient='horizontal',
-                               length=180, bg='#f8f9fa',
-                               font=('Segoe UI', 9),
-                               highlightthickness=0,
-                               troughcolor='#ecf0f1',
-                               activebackground='#3498db')
-        octave_scale.pack(side='left')
+        # Pulsanti freccia per ottava start
+        start_octave_up = tk.Button(start_octave_controls, text="▲", 
+                                   font=('Segoe UI', 8, 'bold'),
+                                   bg='#3498db', fg='white',
+                                   command=self.increase_start_octave,
+                                   width=3, height=1,
+                                   relief='flat', bd=0,
+                                   cursor='hand2',
+                                   activebackground='#2980b9',
+                                   activeforeground='white')
+        start_octave_up.pack(side='left', padx=(0, 2))
         
-        # Valore corrente ottava
-        self.octave_value_label = tk.Label(octave_controls, text="4", 
-                                          font=('Segoe UI', 11, 'bold'), 
+        self.start_octave_label = tk.Label(start_octave_controls, text="4", 
+                                          font=('Segoe UI', 10, 'bold'), 
                                           bg='#3498db', fg='white',
                                           width=3, relief='flat')
-        self.octave_value_label.pack(side='left', padx=(10, 0))
+        self.start_octave_label.pack(side='left', padx=(2, 2))
         
-        # Durata - Lato destro
-        duration_frame = tk.Frame(params_frame, bg='#f8f9fa')
-        duration_frame.pack(side='right', fill='x', expand=True)
+        start_octave_down = tk.Button(start_octave_controls, text="▼", 
+                                     font=('Segoe UI', 8, 'bold'),
+                                     bg='#3498db', fg='white',
+                                     command=self.decrease_start_octave,
+                                     width=3, height=1,
+                                     relief='flat', bd=0,
+                                     cursor='hand2',
+                                     activebackground='#2980b9',
+                                     activeforeground='white')
+        start_octave_down.pack(side='left', padx=(2, 0))
         
-        duration_label = tk.Label(duration_frame, text="⏱️ Duration", 
-                                font=('Segoe UI', 10, 'bold'), 
-                                bg='#f8f9fa', fg='#2c3e50')
-        duration_label.pack(anchor='w')
+        # Durata Ottave
+        duration_octaves_frame = tk.Frame(params_frame, bg='#f8f9fa')
+        duration_octaves_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        duration_controls = tk.Frame(duration_frame, bg='#f8f9fa')
-        duration_controls.pack(fill='x', pady=(5, 0))
+        duration_octaves_label = tk.Label(duration_octaves_frame, text="🎵 Duration Octaves", 
+                                         font=('Segoe UI', 9, 'bold'), 
+                                         bg='#f8f9fa', fg='#2c3e50')
+        duration_octaves_label.pack(anchor='w')
         
-        duration_scale = tk.Scale(duration_controls, from_=0.1, to=1.0, 
-                                 resolution=0.1, variable=self.duration_var, 
-                                 orient='horizontal', length=180, bg='#f8f9fa',
-                                 font=('Segoe UI', 9),
-                                 highlightthickness=0,
-                                 troughcolor='#ecf0f1',
-                                 activebackground='#e67e22')
-        duration_scale.pack(side='left')
+        duration_octaves_controls = tk.Frame(duration_octaves_frame, bg='#f8f9fa')
+        duration_octaves_controls.pack(fill='x', pady=(2, 0))
         
-        # Valore corrente durata
-        self.duration_value_label = tk.Label(duration_controls, text="0.3s", 
-                                           font=('Segoe UI', 11, 'bold'), 
-                                           bg='#e67e22', fg='white',
-                                           width=5, relief='flat')
-        self.duration_value_label.pack(side='left', padx=(10, 0))
+        # Pulsanti freccia per durata ottave
+        duration_octaves_up = tk.Button(duration_octaves_controls, text="▲", 
+                                       font=('Segoe UI', 8, 'bold'),
+                                       bg='#e67e22', fg='white',
+                                       command=self.increase_duration_octaves,
+                                       width=3, height=1,
+                                       relief='flat', bd=0,
+                                       cursor='hand2',
+                                       activebackground='#d35400',
+                                       activeforeground='white')
+        duration_octaves_up.pack(side='left', padx=(0, 2))
         
-        # Aggiorna i valori quando cambiano le scale
-        def update_octave_value(*_):
-            self.octave_value_label.config(text=str(int(self.octave_var.get())))
-        self.octave_var.trace('w', update_octave_value)
+        self.duration_octaves_label = tk.Label(duration_octaves_controls, text="1", 
+                                              font=('Segoe UI', 10, 'bold'), 
+                                              bg='#e67e22', fg='white',
+                                              width=3, relief='flat')
+        self.duration_octaves_label.pack(side='left', padx=(2, 2))
         
-        def update_duration_value(*_):
-            self.duration_value_label.config(text=f"{self.duration_var.get():.1f}s")
-        self.duration_var.trace('w', update_duration_value)
+        duration_octaves_down = tk.Button(duration_octaves_controls, text="▼", 
+                                         font=('Segoe UI', 8, 'bold'),
+                                         bg='#e67e22', fg='white',
+                                         command=self.decrease_duration_octaves,
+                                         width=3, height=1,
+                                         relief='flat', bd=0,
+                                         cursor='hand2',
+                                         activebackground='#d35400',
+                                         activeforeground='white')
+        duration_octaves_down.pack(side='left', padx=(2, 0))
+        
+        # Durata Note
+        note_duration_frame = tk.Frame(params_frame, bg='#f8f9fa')
+        note_duration_frame.pack(side='left', fill='x', expand=True)
+        
+        note_duration_label = tk.Label(note_duration_frame, text="⏱️ Note Duration", 
+                                      font=('Segoe UI', 9, 'bold'), 
+                                      bg='#f8f9fa', fg='#2c3e50')
+        note_duration_label.pack(anchor='w')
+        
+        note_duration_controls = tk.Frame(note_duration_frame, bg='#f8f9fa')
+        note_duration_controls.pack(fill='x', pady=(2, 0))
+        
+        # Dropdown per durata note
+        note_duration_options = ["Whole", "Half", "Quarter", "Eighth", "Sixteenth", "Thirty-Second"]
+        note_duration_dropdown = ttk.Combobox(note_duration_controls, 
+                                             textvariable=self.note_duration_var,
+                                             values=note_duration_options,
+                                             state="readonly",
+                                             width=12,
+                                             font=('Segoe UI', 9))
+        note_duration_dropdown.pack(side='left')
+        note_duration_dropdown.bind('<<ComboboxSelected>>', self.on_note_duration_change)
+        
+        # Aggiorna i valori quando cambiano
+        def update_start_octave_value(*_):
+            self.start_octave_label.config(text=str(int(self.start_octave_var.get())))
+        self.start_octave_var.trace('w', update_start_octave_value)
+        
+        def update_duration_octaves_value(*_):
+            self.duration_octaves_label.config(text=str(int(self.duration_octaves_var.get())))
+        self.duration_octaves_var.trace('w', update_duration_octaves_value)
     
     def create_pattern_controls_compact(self, parent):
         """Crea i controlli pattern in formato compatto con tooltip"""
@@ -468,21 +523,6 @@ class CreativeChordWindow:
         self.selected_pattern.set(pattern_value)
         self.on_pattern_change()
     
-    def create_status_area_compact(self, parent):
-        """Crea l'area di stato compatta"""
-        status_frame = ttk.LabelFrame(parent, text="📊 Status", 
-                                     style='Modern.TLabelframe', padding="10")
-        status_frame.pack(fill='both', expand=True)
-        
-        self.status_text = tk.Text(status_frame, height=8, width=50, 
-                                  font=('Segoe UI', 9), bg='#f8f9fa',
-                                  relief='flat', bd=0,
-                                  fg='#2c3e50')
-        self.status_text.pack(fill='both', expand=True)
-        
-        # Messaggio iniziale
-        self.log_message("🎵 Creative Chord Patterns ready!")
-        self.log_message("📝 Select a pattern and click Play")
     
     def setup_keyboard_shortcuts(self):
         """Configura le scorciatoie da tastiera"""
@@ -504,30 +544,62 @@ class CreativeChordWindow:
     def toggle_loop(self):
         """Toggle del loop"""
         self.loop_var.set(not self.loop_var.get())
+        if self.loop_var.get():
+            self.loop_btn.config(bg='#3498db', fg='white')
+        else:
+            self.loop_btn.config(bg='#95a5a6', fg='white')
     
-    def create_status_area(self, parent):
-        """Crea l'area di stato"""
-        status_frame = ttk.LabelFrame(parent, text="📊 Status & Log", padding="10")
-        status_frame.pack(fill='both', expand=True)
-        
-        self.status_text = tk.Text(status_frame, height=8, width=80, 
-                                  font=('Arial', 10), bg='#f8f8f8',
-                                  relief='sunken', bd=2)
-        self.status_text.pack(fill='both', expand=True, pady=(5, 0))
-        
-        # Scrollbar per il testo
-        scrollbar = ttk.Scrollbar(status_frame, orient='vertical', command=self.status_text.yview)
-        scrollbar.pack(side='right', fill='y')
-        self.status_text.config(yscrollcommand=scrollbar.set)
-        
-        # Messaggio iniziale
-        self.log_message("🎵 Creative Chord Patterns ready!")
-        self.log_message("📝 Instructions:")
-        self.log_message("   1. Select a pattern from the categories below")
-        self.log_message("   2. Adjust octave (2-6) and duration (0.1-1.0s) if needed")
-        self.log_message("   3. Click ▶ PLAY to start playback")
-        self.log_message("   4. Click ⏹ STOP to stop playback")
-        self.log_message("   5. Enable 🔄 LOOP for continuous playback")
+    def toggle_reverse(self):
+        """Toggle del reverse"""
+        self.reverse_var.set(not self.reverse_var.get())
+        if self.reverse_var.get():
+            self.reverse_btn.config(bg='#e67e22', fg='white')
+        else:
+            self.reverse_btn.config(bg='#95a5a6', fg='white')
+    
+    def increase_start_octave(self):
+        """Aumenta l'ottava di partenza"""
+        current = self.start_octave_var.get()
+        if current < 6:
+            self.start_octave_var.set(current + 1)
+    
+    def decrease_start_octave(self):
+        """Diminuisce l'ottava di partenza"""
+        current = self.start_octave_var.get()
+        if current > 2:
+            self.start_octave_var.set(current - 1)
+    
+    def increase_duration_octaves(self):
+        """Aumenta le ottave di durata"""
+        current = self.duration_octaves_var.get()
+        if current < 3:
+            self.duration_octaves_var.set(current + 1)
+    
+    def decrease_duration_octaves(self):
+        """Diminuisce le ottave di durata"""
+        current = self.duration_octaves_var.get()
+        if current > 1:
+            self.duration_octaves_var.set(current - 1)
+    
+    def on_note_duration_change(self, event=None):
+        """Gestisce il cambio di durata nota"""
+        duration = self.note_duration_var.get()
+        self.log_message(f"Note duration changed to: {duration}")
+        # Suppress unused argument warning
+        _ = event
+    
+    def get_note_duration_seconds(self):
+        """Converte la durata nota in secondi"""
+        duration_map = {
+            "Whole": 2.0,
+            "Half": 1.0,
+            "Quarter": 0.5,
+            "Eighth": 0.25,
+            "Sixteenth": 0.125,
+            "Thirty-Second": 0.0625
+        }
+        return duration_map.get(self.note_duration_var.get(), 0.5)
+    
     
     def on_pattern_change(self):
         """Gestisce il cambio di pattern"""
@@ -550,17 +622,22 @@ class CreativeChordWindow:
             self.update_controls()
             
             self.log_message(f"Playing pattern: {pattern_type.value}")
-            self.log_message(f"Octave: {self.octave_var.get()}, Duration: {self.duration_var.get():.1f}s")
+            self.log_message(f"Start Octave: {self.start_octave_var.get()}, Duration Octaves: {self.duration_octaves_var.get()}")
+            self.log_message(f"Note Duration: {self.note_duration_var.get()}")
             if self.loop_var.get():
                 self.log_message("Loop mode: ON")
+            if self.reverse_var.get():
+                self.log_message("Reverse mode: ON")
             
             # Avvia la riproduzione in un thread separato
             self.pattern_engine.play_pattern(
                 self.sound_cell,
                 pattern_type,
-                self.octave_var.get(),
-                self.duration_var.get(),
+                self.start_octave_var.get(),
+                self.get_note_duration_seconds(),
                 self.loop_var.get(),
+                self.reverse_var.get(),
+                self.duration_octaves_var.get(),
                 self.on_playback_finished
             )
             
@@ -597,9 +674,8 @@ class CreativeChordWindow:
             self.stop_btn.config(state='disabled', bg='#bdc3c7', cursor='arrow')
     
     def log_message(self, message: str):
-        """Aggiunge un messaggio all'area di stato"""
-        self.status_text.insert(tk.END, f"{message}\n")
-        self.status_text.see(tk.END)
+        """Aggiunge un messaggio all'area di stato (ora solo console)"""
+        print(f"Creative Chord Patterns: {message}")
         self.window.update_idletasks()
     
     def on_closing(self):

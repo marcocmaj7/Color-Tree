@@ -552,7 +552,8 @@ class PatternEngine:
     
     def play_pattern(self, sound_cell: SoundCell, pattern_type: PatternType, 
                     octave: int = 4, base_duration: float = 0.3, 
-                    loop: bool = False, callback: Optional[Callable] = None):
+                    loop: bool = False, reverse: bool = False, 
+                    duration_octaves: int = 1, callback: Optional[Callable] = None):
         """Riproduce un pattern con le note specificate"""
         if self.is_playing:
             self.stop_pattern()
@@ -566,11 +567,19 @@ class PatternEngine:
         def play_worker():
             try:
                 while not self.stop_requested and (not loop or self.is_looping):
-                    # Genera le note del pattern
-                    pattern_notes = self.generate_pattern_notes(sound_cell, pattern_type, octave, base_duration)
+                    # Genera le note del pattern per ogni ottava di durata
+                    all_pattern_notes = []
+                    for octave_offset in range(duration_octaves):
+                        current_octave = octave + octave_offset
+                        pattern_notes = self.generate_pattern_notes(sound_cell, pattern_type, current_octave, base_duration)
+                        all_pattern_notes.extend(pattern_notes)
+                    
+                    # Applica reverse se richiesto
+                    if reverse:
+                        all_pattern_notes = list(reversed(all_pattern_notes))
                     
                     # Riproduce le note
-                    for note_event in pattern_notes:
+                    for note_event in all_pattern_notes:
                         if self.stop_requested or self.playback_id != current_playback_id:
                             break
                         
