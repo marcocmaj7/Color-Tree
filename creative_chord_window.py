@@ -11,11 +11,12 @@ from chord_generator import SoundCell, MIDIScaleGenerator
 class CreativeChordWindow:
     """Finestra separata per la riproduzione creativa di accordi"""
     
-    def __init__(self, parent, sound_cell: SoundCell, midi_generator: MIDIScaleGenerator):
+    def __init__(self, parent, sound_cell: SoundCell, midi_generator: MIDIScaleGenerator, midi_output=None):
         self.parent = parent
         self.sound_cell = sound_cell
         self.midi_generator = midi_generator
-        self.pattern_engine = PatternEngine(midi_generator)
+        self.midi_output = midi_output  # Aggiunto supporto MIDI
+        self.pattern_engine = PatternEngine(midi_generator, midi_output)  # Passa MIDI al pattern engine
         
         # Crea la finestra
         self.window = tk.Toplevel(parent)
@@ -946,6 +947,7 @@ class CreativeChordWindow:
         
         # Se sta riproducendo, aggiorna i parametri in tempo reale
         if self.is_playing:
+            # Il MIDI viene ora inviato automaticamente dal pattern engine per ogni nota dell'arpeggio
             self.update_parameters_realtime()
             self.log_message(f"Chord changed to: {new_sound_cell.__str__()}")
     
@@ -1037,6 +1039,7 @@ class CreativeChordWindow:
             if self.reverse_var.get():
                 self.log_message("Reverse mode: ON")
             
+            # Il MIDI viene ora inviato automaticamente dal pattern engine per ogni nota dell'arpeggio
             # Avvia la riproduzione in un thread separato
             self.pattern_engine.play_pattern(
                 self.sound_cell,

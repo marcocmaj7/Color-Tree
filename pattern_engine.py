@@ -64,8 +64,9 @@ class NoteEvent:
 class PatternEngine:
     """Motore per la generazione e riproduzione di pattern creativi"""
     
-    def __init__(self, midi_generator: MIDIScaleGenerator):
+    def __init__(self, midi_generator: MIDIScaleGenerator, midi_output=None):
         self.midi_generator = midi_generator
+        self.midi_output = midi_output  # Aggiunto supporto MIDI
         self.is_playing = False
         self.is_looping = False
         self.stop_requested = False
@@ -829,7 +830,41 @@ class PatternEngine:
             # Controlla se dobbiamo fermarci prima di iniziare
             if self.stop_requested:
                 return
+            
+            # Se MIDI è configurato, invia via MIDI invece di pygame
+            if self.midi_output and self.midi_output.initialized and self.midi_output.output_port:
+                self._play_single_note_midi(midi_note, duration, volume)
+                return
                 
+            # Altrimenti usa pygame (comportamento originale)
+            self._play_single_note_pygame(midi_note, duration, volume)
+        except (OSError, RuntimeError, ValueError) as e:
+            print(f"Errore nella riproduzione della nota: {e}")
+    
+    def _play_single_note_midi(self, midi_note: int, duration: float, volume: float):
+        """Riproduce una singola nota via MIDI"""
+        try:
+            # Invia Note On
+            velocity = int(volume * 127)  # Converte volume (0-1) a velocity (0-127)
+            self.midi_output.send_note_on(midi_note, velocity)
+            
+            # Programma Note Off dopo la durata
+            def send_note_off():
+                time.sleep(duration)
+                if not self.stop_requested:
+                    self.midi_output.send_note_off(midi_note)
+            
+            # Esegue in un thread separato per non bloccare
+            thread = threading.Thread(target=send_note_off)
+            thread.daemon = True
+            thread.start()
+            
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'invio MIDI: {e}")
+    
+    def _play_single_note_pygame(self, midi_note: int, duration: float, volume: float):
+        """Riproduce una singola nota via pygame (comportamento originale)"""
+        try:
             # Calcola la frequenza dalla nota MIDI
             frequency = 440.0 * (2 ** ((midi_note - 69) / 12.0))
             

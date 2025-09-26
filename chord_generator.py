@@ -1179,7 +1179,8 @@ class ColorTreeDisplayApp:
                 self.creative_window = CreativeChordWindow(
                     self.root, 
                     self.selected_sound_cell, 
-                    self.midi_generator
+                    self.midi_generator,
+                    self.midi_output  # Passa il MIDI output
                 )
                 self.creative_window.show()
         except (ImportError, RuntimeError, OSError) as e:
