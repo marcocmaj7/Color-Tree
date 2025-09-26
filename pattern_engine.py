@@ -109,6 +109,23 @@ class PatternEngine:
             if bpm is not None:
                 self.current_bpm = bpm
     
+    def update_parameters_safe(self, sound_cell: SoundCell = None, pattern_type: PatternType = None,
+                              octave: int = None, base_duration: float = None,
+                              loop: bool = None, reverse: bool = None, duration_octaves: int = None,
+                              playback_speed: float = None, bpm: int = None):
+        """Aggiorna i parametri in modo sicuro, fermando la riproduzione se necessario"""
+        # Se stiamo cambiando parametri critici, ferma la riproduzione corrente
+        critical_changes = (sound_cell is not None or pattern_type is not None or 
+                           octave is not None or base_duration is not None)
+        
+        if critical_changes and self.is_playing:
+            self.stop_pattern()
+            # Aspetta un momento per assicurarsi che il thread sia fermato
+            time.sleep(0.05)
+        
+        self.update_parameters(sound_cell, pattern_type, octave, base_duration, 
+                              loop, reverse, duration_octaves, playback_speed, bpm)
+    
     def get_current_parameters(self):
         """Ottiene i parametri correnti in modo thread-safe"""
         with self.param_lock:
@@ -644,7 +661,7 @@ class PatternEngine:
     def _pattern_random_rhythm(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
         """Ritmo casuale: note normali ma con durate e pause imprevedibili"""
         result = []
-        for i, note in enumerate(notes):
+        for note in notes:
             # Durata casuale ma più controllata
             rhythm_multiplier = random.choice([0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
             random_duration = base_duration * rhythm_multiplier
@@ -684,7 +701,7 @@ class PatternEngine:
     def _pattern_random_changing(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
         """Cambiamento continuo: ogni nota può essere sostituita casualmente"""
         result = []
-        for i, note in enumerate(notes):
+        for note in notes:
             # 30% di probabilità di sostituire la nota con una casuale
             if random.random() < 0.3:
                 # Sceglie una nota casuale dallo stesso accordo
@@ -725,10 +742,10 @@ class PatternEngine:
         self.is_looping = loop
         self.stop_requested = False
         self.playback_id += 1
-        current_playback_id = self.playback_id
         
         def play_worker():
             try:
+                iteration_count = 0
                 while not self.stop_requested and (not loop or self.is_looping):
                     # Ottieni i parametri correnti (potrebbero essere cambiati durante la riproduzione)
                     params = self.get_current_parameters()
@@ -739,7 +756,6 @@ class PatternEngine:
                     current_reverse = params['reverse']
                     current_duration_octaves = params['duration_octaves']
                     current_playback_speed = params['playback_speed']
-                    current_bpm = params['bpm']
                     
                     if not current_sound_cell or not current_pattern_type:
                         break
@@ -757,7 +773,8 @@ class PatternEngine:
                     
                     # Riproduce le note
                     for note_event in all_pattern_notes:
-                        if self.stop_requested or self.playback_id != current_playback_id:
+                        # Controlla solo se è stato richiesto di fermare, non il playback_id durante il loop
+                        if self.stop_requested:
                             break
                         
                         # Calcola il numero MIDI
@@ -767,24 +784,21 @@ class PatternEngine:
                         if note_event.delay > 0:
                             time.sleep(note_event.delay / current_playback_speed)
                         
-                        if self.stop_requested or self.playback_id != current_playback_id:
+                        if self.stop_requested:
                             break
                         
                         # Riproduce la nota (applica la velocità di riproduzione)
                         adjusted_duration = note_event.duration / current_playback_speed
                         self._play_single_note(midi_note, adjusted_duration, note_event.volume)
-                        
-                        # Pausa tra le note (applica la velocità di riproduzione)
-                        if not self.stop_requested and self.playback_id == current_playback_id:
-                            time.sleep((current_base_duration * 0.1) / current_playback_speed)
                     
                     # Se non è in loop, esce dopo una volta
                     if not loop:
                         break
                     
-                    # Pausa tra le ripetizioni del pattern (applica la velocità di riproduzione)
-                    if not self.stop_requested and self.is_looping:
-                        time.sleep((current_base_duration * 0.5) / current_playback_speed)
+                    # Incrementa il contatore delle iterazioni per debug
+                    iteration_count += 1
+                    
+                    # Nessuna pausa tra le ripetizioni del pattern per loop continuo
                 
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"Errore nella riproduzione del pattern: {e}")
@@ -798,8 +812,12 @@ class PatternEngine:
         self.current_thread.start()
     
     def _play_single_note(self, midi_note: int, duration: float, volume: float):
-        """Riproduce una singola nota"""
+        """Riproduce una singola nota in modo sincrono con controlli di stop"""
         try:
+            # Controlla se dobbiamo fermarci prima di iniziare
+            if self.stop_requested:
+                return
+                
             # Calcola la frequenza dalla nota MIDI
             frequency = 440.0 * (2 ** ((midi_note - 69) / 12.0))
             
@@ -831,10 +849,17 @@ class PatternEngine:
                 # Crea array stereo
                 stereo_wave = np.column_stack((wave, wave))
                 
-                # Riproduce il suono
+                # Riproduce il suono e aspetta che finisca
                 import pygame
                 sound = pygame.sndarray.make_sound(stereo_wave)
                 sound.play()
+                
+                # Aspetta che la nota finisca di suonare, controllando periodicamente se dobbiamo fermarci
+                sleep_chunks = int(duration / 0.01) + 1  # Controlla ogni 10ms
+                for _ in range(sleep_chunks):
+                    if self.stop_requested:
+                        break
+                    time.sleep(0.01)
                 
             except ImportError:
                 # Fallback senza numpy
@@ -860,9 +885,16 @@ class PatternEngine:
                     wave_val = int(4096 * volume * wave_val)
                     arr.append([wave_val, wave_val])
                 
-                # Riproduce il suono
+                # Riproduce il suono e aspetta che finisca
                 sound = pygame.sndarray.make_sound(arr)
                 sound.play()
+                
+                # Aspetta che la nota finisca di suonare, controllando periodicamente se dobbiamo fermarci
+                sleep_chunks = int(duration / 0.01) + 1  # Controlla ogni 10ms
+                for _ in range(sleep_chunks):
+                    if self.stop_requested:
+                        break
+                    time.sleep(0.01)
                 
         except (OSError, RuntimeError, ValueError) as e:
             print(f"Errore nella riproduzione della nota: {e}")
@@ -873,16 +905,16 @@ class PatternEngine:
         self.is_playing = False
         self.is_looping = False
         
-        # Ferma tutti i suoni pygame
+        # Aspetta che il thread finisca prima di fermare i suoni
+        if self.current_thread and self.current_thread.is_alive():
+            self.current_thread.join(timeout=0.2)
+        
+        # Ferma tutti i suoni pygame solo dopo che il thread è finito
         try:
             import pygame
             pygame.mixer.stop()
         except (OSError, RuntimeError, AttributeError):
             pass
-        
-        # Aspetta che il thread finisca
-        if self.current_thread and self.current_thread.is_alive():
-            self.current_thread.join(timeout=0.1)
     
     def is_pattern_playing(self) -> bool:
         """Controlla se un pattern è attualmente in riproduzione"""

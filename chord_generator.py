@@ -421,7 +421,6 @@ class MIDIScaleGenerator:
         
         # Incrementa l'ID di riproduzione per invalidare le riproduzioni precedenti
         self.playback_id += 1
-        current_playback_id = self.playback_id
         
         # Aspetta un momento per assicurarsi che il thread precedente sia fermato
         time.sleep(0.01)
@@ -431,8 +430,8 @@ class MIDIScaleGenerator:
                 midi_notes = self.generate_scale_notes(sound_cell, octave)
                 
                 for i, midi_note in enumerate(midi_notes):
-                    # Controlla se questa riproduzione è ancora valida
-                    if self.playback_id != current_playback_id:
+                    # Controlla se questa riproduzione è ancora valida (solo per fermare, non per interrompere il loop)
+                    if self.stop_playing:
                         break
                         
                     # Calcola la frequenza dalla nota MIDI
@@ -494,7 +493,7 @@ class MIDIScaleGenerator:
                             arr.append([wave_val, wave_val])
                     
                     # Controlla di nuovo se questa riproduzione è ancora valida
-                    if self.playback_id != current_playback_id:
+                    if self.stop_playing:
                         break
                         
                     # Riproduce il suono
@@ -504,7 +503,7 @@ class MIDIScaleGenerator:
                     self.current_sounds.append(sound)
                     
                     # Controlla se questa riproduzione è ancora valida durante la pausa
-                    if self.playback_id == current_playback_id:
+                    if not self.stop_playing:
                         time.sleep(duration * 0.8)  # Piccola pausa tra le note
                     
             except (OSError, RuntimeError) as e:
