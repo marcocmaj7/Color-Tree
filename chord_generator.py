@@ -422,6 +422,9 @@ class MIDIScaleGenerator:
         # Incrementa l'ID di riproduzione per invalidare le riproduzioni precedenti
         self.playback_id += 1
         
+        # Reset del flag di stop per permettere la nuova riproduzione
+        self.stop_playing = False
+        
         # Aspetta un momento per assicurarsi che il thread precedente sia fermato
         time.sleep(0.01)
         
