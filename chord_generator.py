@@ -673,6 +673,9 @@ class ColorTreeDisplayApp:
         # Inizializza il bottone creativo per evitare errori di linting
         self.creative_btn = None
         
+        # Inizializza il dropdown personalizzato MIDI
+        self._custom_dropdown = None
+        
         self.setup_ui()
         self.generate_color_tree()
     
@@ -811,17 +814,156 @@ class ColorTreeDisplayApp:
         self.midi_combo.pack(side='left', padx=(0, 5))
         self.midi_combo.bind('<<ComboboxSelected>>', self.on_midi_port_change)
         
+        # Forza l'apertura del dropdown verso l'alto
+        self._configure_midi_dropdown_upward()
+        
         # Applica il ridimensionamento iniziale
         self.update_control_sizes()
         
         # Bottone per aggiornare le porte MIDI
         refresh_btn = tk.Button(midi_container, text="🔄", 
                                font=('Arial', 8), width=2, height=1,
-                               command=self.refresh_midi_ports)
+                               command=self._refresh_midi_ports_with_dropdown_close)
         refresh_btn.pack(side='left', padx=(2, 0))
         
         # Inizializza le porte MIDI
         self.refresh_midi_ports()
+    
+    def _refresh_midi_ports_with_dropdown_close(self):
+        """Aggiorna le porte MIDI e chiude il dropdown se aperto"""
+        self._close_midi_dropdown()
+        self.refresh_midi_ports()
+    
+    def _configure_midi_dropdown_upward(self):
+        """Configura il dropdown MIDI per aprirsi esclusivamente verso l'alto"""
+        def force_dropdown_upward():
+            """Forza l'apertura del dropdown verso l'alto"""
+            try:
+                # Ottiene le dimensioni e posizione del combobox
+                combo_x = self.midi_combo.winfo_rootx()
+                combo_y = self.midi_combo.winfo_rooty()
+                combo_width = self.midi_combo.winfo_width()
+                
+                # Calcola l'altezza stimata del dropdown
+                values = self.midi_combo['values']
+                dropdown_height = min(len(values) * 25, 200)  # Max 200px, 25px per elemento
+                
+                # Calcola la posizione Y per aprire verso l'alto
+                dropdown_y = combo_y - dropdown_height
+                
+                # Se il dropdown andrebbe fuori dallo schermo in alto, 
+                # posizionalo comunque sopra il combobox ma limitato al bordo superiore
+                if dropdown_y < 0:
+                    dropdown_y = max(0, combo_y - dropdown_height)
+                
+                # Crea un popup personalizzato che si apre verso l'alto
+                self._create_upward_dropdown(combo_x, dropdown_y, combo_width, dropdown_height, values)
+                
+            except (tk.TclError, AttributeError, TypeError) as e:
+                # Se c'è un errore, usa il comportamento predefinito
+                print(f"Errore nella configurazione dropdown: {e}")
+        
+        # Sostituisce il postcommand predefinito con la nostra funzione
+        self.midi_combo.configure(postcommand=force_dropdown_upward)
+        
+        # Aggiunge anche un binding per il click per gestire apertura/chiusura
+        def on_click(_):
+            # Se il dropdown è già aperto, chiudilo
+            if hasattr(self, '_custom_dropdown') and self._custom_dropdown:
+                self._close_midi_dropdown()
+            else:
+                # Altrimenti aprilo verso l'alto
+                force_dropdown_upward()
+            return "break"  # Previene il comportamento predefinito
+        
+        self.midi_combo.bind('<Button-1>', on_click)
+    
+    def _close_midi_dropdown(self):
+        """Chiude il dropdown MIDI personalizzato se aperto"""
+        if hasattr(self, '_custom_dropdown') and self._custom_dropdown:
+            try:
+                # Rimuovi i binding temporanei dalla finestra principale
+                try:
+                    self.root.unbind('<Button-1>')
+                except tk.TclError:
+                    pass
+                self._custom_dropdown.destroy()
+                self._custom_dropdown = None
+            except (tk.TclError, AttributeError):
+                pass
+    
+    def _create_upward_dropdown(self, x, y, width, height, values):
+        """Crea un dropdown personalizzato che si apre verso l'alto"""
+        # Distruggi il dropdown precedente se esiste
+        self._close_midi_dropdown()
+        
+        # Crea una finestra popup per il dropdown
+        self._custom_dropdown = tk.Toplevel(self.root)
+        self._custom_dropdown.wm_overrideredirect(True)
+        self._custom_dropdown.wm_geometry(f"{width}x{height}+{x}+{y}")
+        self._custom_dropdown.configure(bg='white')
+        
+        # Crea un frame per contenere la lista
+        dropdown_frame = tk.Frame(self._custom_dropdown, bg='white', relief='solid', bd=1)
+        dropdown_frame.pack(fill='both', expand=True)
+        
+        # Crea una Listbox per mostrare le opzioni
+        listbox = tk.Listbox(dropdown_frame, font=('Arial', 9), 
+                           selectmode=tk.SINGLE, bg='white', 
+                           relief='flat', bd=0, highlightthickness=0)
+        listbox.pack(fill='both', expand=True)
+        
+        # Aggiungi le opzioni alla lista
+        for value in values:
+            listbox.insert(tk.END, value)
+        
+        # Funzione per gestire la selezione
+        def on_select(_):
+            # Con singolo click, dobbiamo aspettare che la selezione sia effettivamente impostata
+            def delayed_selection():
+                try:
+                    selection = listbox.curselection()
+                    if selection:
+                        selected_value = listbox.get(selection[0])
+                        self.midi_port_var.set(selected_value)
+                        self.on_midi_port_change()
+                        self._close_midi_dropdown()
+                except (tk.TclError, AttributeError):
+                    pass
+            
+            # Ritarda leggermente la selezione per permettere al click di essere processato
+            self.root.after(10, delayed_selection)
+        
+        # Funzione per chiudere il dropdown
+        def close_dropdown(_=None):
+            self._close_midi_dropdown()
+        
+        # Binding per la selezione con singolo click
+        listbox.bind('<Button-1>', on_select)
+        listbox.bind('<Escape>', close_dropdown)
+        
+        # Binding per chiudere quando si clicca fuori
+        self._custom_dropdown.bind('<FocusOut>', close_dropdown)
+        
+        # Binding per chiudere quando si clicca sulla finestra principale (ma non sulla listbox)
+        def close_if_not_listbox(event):
+            if event.widget != listbox:
+                close_dropdown()
+        
+        self.root.bind('<Button-1>', close_if_not_listbox)
+        
+        # Focus sulla listbox
+        listbox.focus_set()
+        
+        # Evidenzia l'elemento attualmente selezionato
+        current_value = self.midi_port_var.get()
+        if current_value in values:
+            try:
+                index = values.index(current_value)
+                listbox.selection_set(index)
+                listbox.see(index)
+            except ValueError:
+                pass
     
     def create_creative_controls(self):
         """Crea i controlli per la finestra creativa in basso a sinistra"""
