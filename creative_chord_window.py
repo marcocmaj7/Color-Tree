@@ -475,7 +475,7 @@ class CreativeChordWindow:
         
         note_duration_label = tk.Label(note_duration_frame, text="Note Duration", 
                                       font=('Segoe UI', 9, 'bold'), 
-                                      bg='#f8f9fa', fg='#9b59b6')
+                                      bg='#f8f9fa', fg='#2c3e50')
         note_duration_label.pack(anchor='center')
         
         note_duration_controls = tk.Frame(note_duration_frame, bg='#f8f9fa')
