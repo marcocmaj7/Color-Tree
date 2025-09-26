@@ -154,7 +154,7 @@ class PatternEngine:
             return []
         
         # Genera le note base per l'ottava specificata
-        base_notes = self._generate_base_notes(notes, octave)
+        base_notes = self._generate_base_notes(notes, octave, base_duration)
         
         if pattern_type == PatternType.UP:
             return self._pattern_up(base_notes, base_duration)
@@ -207,16 +207,17 @@ class PatternEngine:
         else:
             return self._pattern_up(base_notes, base_duration)  # Default
     
-    def _generate_base_notes(self, notes: List[Note], octave: int) -> List[NoteEvent]:
+    def _generate_base_notes(self, notes: List[Note], octave: int, base_duration: float = 0.3) -> List[NoteEvent]:
         """Genera le note base per l'ottava specificata"""
         base_notes = []
-        for i, note in enumerate(notes):
-            # Calcola l'ottava corretta per ogni nota
-            target_octave = octave + (i // 12)  # Aumenta l'ottava ogni 12 note
+        for note in notes:
+            # Per un accordo normale, tutte le note sono nella stessa ottava
+            # Solo se ci sono più di 12 note diverse, allora aumenta l'ottava
+            target_octave = octave
             base_notes.append(NoteEvent(
                 note=note,
                 octave=target_octave,
-                duration=0.3,
+                duration=base_duration,  # Usa la durata passata come parametro
                 volume=0.7
             ))
         return base_notes
@@ -225,6 +226,8 @@ class PatternEngine:
     def _pattern_up(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
         """Ascendente semplice (C→E→G→C)"""
         result = []
+        
+        # Ripete le note dell'accordo nella stessa ottava
         for note in notes:
             result.append(NoteEvent(
                 note=note.note,
@@ -232,11 +235,14 @@ class PatternEngine:
                 duration=base_duration,
                 volume=note.volume
             ))
+        
         return result
     
     def _pattern_down(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
         """Discendente semplice (C→G→E→C)"""
         result = []
+        
+        # Note dell'accordo in ordine discendente nella stessa ottava
         for note in reversed(notes):
             result.append(NoteEvent(
                 note=note.note,
@@ -244,11 +250,13 @@ class PatternEngine:
                 duration=base_duration,
                 volume=note.volume
             ))
+        
         return result
     
     def _pattern_up_down(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
         """Su poi giù (C→E→G→C→G→E)"""
         result = []
+        
         # Su
         for note in notes:
             result.append(NoteEvent(
@@ -257,6 +265,17 @@ class PatternEngine:
                 duration=base_duration,
                 volume=note.volume
             ))
+        
+        # Aggiunge la nota radice (ripetizione)
+        if notes:
+            root_note = notes[0]
+            result.append(NoteEvent(
+                note=root_note.note,
+                octave=root_note.octave,
+                duration=base_duration,
+                volume=root_note.volume
+            ))
+        
         # Giù (escludendo la prima nota per evitare duplicati)
         for note in reversed(notes[1:]):
             result.append(NoteEvent(
@@ -265,12 +284,24 @@ class PatternEngine:
                 duration=base_duration,
                 volume=note.volume
             ))
+        
         return result
     
     def _pattern_down_up(self, notes: List[NoteEvent], base_duration: float) -> List[NoteEvent]:
         """Giù poi su (C→G→E→C→E→G)"""
         result = []
-        # Giù
+        
+        # Giù - inizia con la nota radice
+        if notes:
+            root_note = notes[0]
+            result.append(NoteEvent(
+                note=root_note.note,
+                octave=root_note.octave,
+                duration=base_duration,
+                volume=root_note.volume
+            ))
+        
+        # Poi scende attraverso le note dell'accordo
         for note in reversed(notes):
             result.append(NoteEvent(
                 note=note.note,
@@ -278,6 +309,7 @@ class PatternEngine:
                 duration=base_duration,
                 volume=note.volume
             ))
+        
         # Su (escludendo la prima nota per evitare duplicati)
         for note in notes[1:]:
             result.append(NoteEvent(
@@ -286,6 +318,7 @@ class PatternEngine:
                 duration=base_duration,
                 volume=note.volume
             ))
+        
         return result
     
     # Pattern Geometrici
@@ -768,17 +801,25 @@ class PatternEngine:
                     
                     # Genera le note del pattern per ogni ottava di durata
                     all_pattern_notes = []
+                    
+                    # Genera le note per tutte le ottave specificate (sia per MIDI che pygame)
                     for octave_offset in range(current_duration_octaves):
                         octave_to_use = current_octave + octave_offset
                         pattern_notes = self.generate_pattern_notes(current_sound_cell, current_pattern_type, octave_to_use, current_base_duration)
                         all_pattern_notes.extend(pattern_notes)
                     
+                    # Debug info (commentato per ridurre output)
+                    # if self.midi_output and self.midi_output.initialized and self.midi_output.output_port:
+                    #     print(f"MIDI mode: Generated {len(all_pattern_notes)} notes for {current_duration_octaves} octaves")
+                    # else:
+                    #     print(f"Pygame mode: Generated {len(all_pattern_notes)} notes for {current_duration_octaves} octaves")
+                    
                     # Applica reverse se richiesto
                     if current_reverse:
                         all_pattern_notes = list(reversed(all_pattern_notes))
                     
-                    # Riproduce le note
-                    for note_event in all_pattern_notes:
+                    # Riproduce le note con timing corretto
+                    for i, note_event in enumerate(all_pattern_notes):
                         # Controlla solo se è stato richiesto di fermare, non il playback_id durante il loop
                         if self.stop_requested:
                             break
@@ -796,10 +837,20 @@ class PatternEngine:
                         # Riproduce la nota (applica la velocità di riproduzione)
                         adjusted_duration = note_event.duration / current_playback_speed
                         self._play_single_note(midi_note, adjusted_duration, note_event.volume)
+                        
+                        # Aggiunge timing tra le note per seguire il pattern temporale
+                        # Solo se non è l'ultima nota e non è in loop continuo
+                        if i < len(all_pattern_notes) - 1:
+                            # Calcola il tempo di attesa tra le note basato sulla durata della nota corrente
+                            note_gap = adjusted_duration * 0.1  # 10% della durata come gap tra le note
+                            time.sleep(note_gap)
                     
                     # Se non è in loop, esce dopo una volta
                     if not loop:
                         break
+                    
+                    # Non limitare le iterazioni per MIDI - permette loop completo
+                    # Il controllo del loop è gestito dalla variabile loop e is_looping
                     
                     # Incrementa il contatore delle iterazioni per debug
                     iteration_count += 1
@@ -842,19 +893,24 @@ class PatternEngine:
             print(f"Errore nella riproduzione della nota: {e}")
     
     def _play_single_note_midi(self, midi_note: int, duration: float, volume: float):
-        """Riproduce una singola nota via MIDI"""
+        """Riproduce una singola nota via MIDI con timing corretto"""
         try:
             # Invia Note On
             velocity = int(volume * 127)  # Converte volume (0-1) a velocity (0-127)
-            self.midi_output.send_note_on(midi_note, velocity)
+            # print(f"Sending MIDI note: {midi_note} (velocity: {velocity}, duration: {duration:.3f}s)")  # Debug commentato
             
-            # Programma Note Off dopo la durata
+            if not self.stop_requested:
+                self.midi_output.send_note_on(midi_note, velocity)
+            
+            # Programma Note Off dopo la durata specificata
             def send_note_off():
+                # Aspetta per la durata specificata della nota
                 time.sleep(duration)
                 if not self.stop_requested:
                     self.midi_output.send_note_off(midi_note)
+                    # print(f"Note Off: {midi_note}")  # Debug commentato
             
-            # Esegue in un thread separato per non bloccare
+            # Esegue in un thread separato per non bloccare il pattern
             thread = threading.Thread(target=send_note_off)
             thread.daemon = True
             thread.start()

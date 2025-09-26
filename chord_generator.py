@@ -1145,11 +1145,9 @@ class ColorTreeDisplayApp:
             # Non riprodurre preview audio quando la finestra creative è aperta
             return
         
-        # Riproduzione audio tramite pygame (solo quando finestra creative è chiusa)
-        self.midi_generator.play_scale(sound_cell)
-        
-        # Output MIDI verso DAW se configurato
+        # Riproduzione audio - solo MIDI se configurato, altrimenti pygame
         if self.midi_output.initialized and self.midi_output.output_port:
+            # Output MIDI verso DAW
             try:
                 # Genera le note MIDI per l'accordo
                 midi_notes = self.midi_generator.generate_scale_notes(sound_cell)
@@ -1157,6 +1155,9 @@ class ColorTreeDisplayApp:
                 self.midi_output.send_chord(midi_notes, duration=2.0)
             except (OSError, RuntimeError, AttributeError) as e:
                 print(f"Errore nell'invio MIDI: {e}")
+        else:
+            # Riproduzione audio tramite pygame (solo quando MIDI non è configurato)
+            self.midi_generator.play_scale(sound_cell)
     
     
     def open_creative_window(self):
