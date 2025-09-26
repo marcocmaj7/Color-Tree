@@ -36,6 +36,23 @@ class CreativeChordWindow:
         self.reverse_var = tk.BooleanVar(value=False)
         self.pause_duration_var = tk.StringVar(value="none")
         
+        # Variabili per gli effetti MIDI
+        self.delay_enabled_var = tk.BooleanVar(value=False)
+        self.delay_time_var = tk.DoubleVar(value=0.25)
+        self.delay_feedback_var = tk.DoubleVar(value=0.3)
+        self.octave_add_var = tk.IntVar(value=0)
+        self.velocity_curve_var = tk.StringVar(value="linear")
+        self.velocity_intensity_var = tk.DoubleVar(value=1.0)
+        self.accent_enabled_var = tk.BooleanVar(value=False)
+        self.accent_strength_var = tk.DoubleVar(value=0.5)
+        self.accent_pattern_var = tk.StringVar(value="every_beat")
+        self.repeater_enabled_var = tk.BooleanVar(value=False)
+        self.repeat_count_var = tk.IntVar(value=2)
+        self.repeat_timing_var = tk.StringVar(value="immediate")
+        self.chord_gen_enabled_var = tk.BooleanVar(value=False)
+        self.chord_variation_var = tk.StringVar(value="inversion")
+        self.voicing_var = tk.StringVar(value="close")
+        
         # Stato dei controlli
         self.is_playing = False
         
@@ -49,6 +66,7 @@ class CreativeChordWindow:
         self.note_duration_label = None
         self.bpm_label = None
         self.playback_speed_label = None
+        self.octave_add_label = None
         
         # Dizionario per tracciare i pulsanti pattern per l'evidenziazione
         self.pattern_buttons = {}
@@ -127,6 +145,9 @@ class CreativeChordWindow:
         
         # Controlli di parametri
         self.create_parameter_controls(left_column)
+        
+        # Controlli effetti MIDI
+        self.create_midi_effects_controls(left_column)
         
         # Colonna destra: Pattern selection e status
         right_column = tk.Frame(content_frame, bg='#f8f9fa')
@@ -545,6 +566,352 @@ class CreativeChordWindow:
             self.duration_octaves_label.config(text=str(int(self.duration_octaves_var.get())))
         self.duration_octaves_var.trace('w', update_duration_octaves_value)
     
+    def create_midi_effects_controls(self, parent):
+        """Crea i controlli per gli effetti MIDI"""
+        effects_frame = ttk.LabelFrame(parent, text="🎛️ MIDI Effects", 
+                                     style='Modern.TLabelframe', padding="10")
+        effects_frame.pack(fill='x', pady=(0, 15))
+        
+        # Delay (MIDI Echo)
+        self.create_delay_controls(effects_frame)
+        
+        # Octave Addition
+        self.create_octave_controls(effects_frame)
+        
+        # Velocity Curve
+        self.create_velocity_controls(effects_frame)
+        
+        # Accent Patterns
+        self.create_accent_controls(effects_frame)
+        
+        # Note Repeater
+        self.create_repeater_controls(effects_frame)
+        
+        # Chord Generator
+        self.create_chord_gen_controls(effects_frame)
+    
+    def create_delay_controls(self, parent):
+        """Crea i controlli per l'effetto Delay (MIDI Echo)"""
+        delay_frame = tk.Frame(parent, bg='#f8f9fa')
+        delay_frame.pack(fill='x', pady=(0, 8))
+        
+        # Checkbox per abilitare delay
+        delay_check = tk.Checkbutton(delay_frame, text="Delay (MIDI Echo)", 
+                                   variable=self.delay_enabled_var,
+                                   font=('Segoe UI', 9, 'bold'),
+                                   bg='#f8f9fa', fg='#2c3e50',
+                                   command=self.on_effect_change)
+        delay_check.pack(anchor='w')
+        
+        # Controlli delay (solo se abilitato)
+        delay_controls = tk.Frame(delay_frame, bg='#f8f9fa')
+        delay_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        
+        # Delay Time
+        time_frame = tk.Frame(delay_controls, bg='#f8f9fa')
+        time_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        
+        time_label = tk.Label(time_frame, text="Time", font=('Segoe UI', 8), 
+                            bg='#f8f9fa', fg='#7f8c8d')
+        time_label.pack(anchor='w')
+        
+        time_scale = tk.Scale(time_frame, from_=0.1, to=2.0, resolution=0.1,
+                            variable=self.delay_time_var, orient='horizontal',
+                            length=80, showvalue=0, bg='#f8f9fa',
+                            command=self.on_effect_change)
+        time_scale.pack(fill='x')
+        
+        time_value = tk.Label(time_frame, text="0.25s", font=('Segoe UI', 8), 
+                            bg='#f8f9fa', fg='#2c3e50')
+        time_value.pack(anchor='w')
+        
+        # Feedback
+        feedback_frame = tk.Frame(delay_controls, bg='#f8f9fa')
+        feedback_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        
+        feedback_label = tk.Label(feedback_frame, text="Feedback", font=('Segoe UI', 8), 
+                                bg='#f8f9fa', fg='#7f8c8d')
+        feedback_label.pack(anchor='w')
+        
+        feedback_scale = tk.Scale(feedback_frame, from_=0.0, to=0.9, resolution=0.1,
+                                variable=self.delay_feedback_var, orient='horizontal',
+                                length=80, showvalue=0, bg='#f8f9fa',
+                                command=self.on_effect_change)
+        feedback_scale.pack(fill='x')
+        
+        feedback_value = tk.Label(feedback_frame, text="0.3", font=('Segoe UI', 8), 
+                                bg='#f8f9fa', fg='#2c3e50')
+        feedback_value.pack(anchor='w')
+        
+        # Update labels when values change
+        def update_delay_time(*_):
+            time_value.config(text=f"{self.delay_time_var.get():.1f}s")
+        self.delay_time_var.trace('w', update_delay_time)
+        
+        def update_feedback(*_):
+            feedback_value.config(text=f"{self.delay_feedback_var.get():.1f}")
+        self.delay_feedback_var.trace('w', update_feedback)
+    
+    def create_octave_controls(self, parent):
+        """Crea i controlli per l'aggiunta di ottave"""
+        octave_frame = tk.Frame(parent, bg='#f8f9fa')
+        octave_frame.pack(fill='x', pady=(0, 8))
+        
+        # Label
+        octave_label = tk.Label(octave_frame, text="Add Octave to All Notes", 
+                              font=('Segoe UI', 9, 'bold'),
+                              bg='#f8f9fa', fg='#2c3e50')
+        octave_label.pack(anchor='w')
+        
+        # Controlli ottava
+        octave_controls = tk.Frame(octave_frame, bg='#f8f9fa')
+        octave_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        
+        # Pulsanti freccia per ottava
+        octave_down = tk.Button(octave_controls, text="▼", 
+                              font=('Segoe UI', 8, 'bold'),
+                              bg='#9b59b6', fg='white',
+                              command=self.decrease_octave_add,
+                              width=3, height=1,
+                              relief='flat', bd=0,
+                              cursor='hand2',
+                              activebackground='#8e44ad',
+                              activeforeground='white')
+        octave_down.pack(side='left', padx=(0, 2))
+        
+        self.octave_add_label = tk.Label(octave_controls, text="0", 
+                                       font=('Segoe UI', 10, 'bold'), 
+                                       bg='#9b59b6', fg='white',
+                                       width=3, relief='flat')
+        self.octave_add_label.pack(side='left', padx=(2, 2))
+        
+        octave_up = tk.Button(octave_controls, text="▲", 
+                            font=('Segoe UI', 8, 'bold'),
+                            bg='#9b59b6', fg='white',
+                            command=self.increase_octave_add,
+                            width=3, height=1,
+                            relief='flat', bd=0,
+                            cursor='hand2',
+                            activebackground='#8e44ad',
+                            activeforeground='white')
+        octave_up.pack(side='left', padx=(2, 0))
+        
+        # Update label when value changes
+        def update_octave_add_value(*_):
+            val = self.octave_add_var.get()
+            self.octave_add_label.config(text=f"{val:+d}")
+        self.octave_add_var.trace('w', update_octave_add_value)
+    
+    def create_velocity_controls(self, parent):
+        """Crea i controlli per la curva di velocità"""
+        velocity_frame = tk.Frame(parent, bg='#f8f9fa')
+        velocity_frame.pack(fill='x', pady=(0, 8))
+        
+        # Label
+        velocity_label = tk.Label(velocity_frame, text="Velocity Curve", 
+                                font=('Segoe UI', 9, 'bold'),
+                                bg='#f8f9fa', fg='#2c3e50')
+        velocity_label.pack(anchor='w')
+        
+        # Controlli velocità
+        velocity_controls = tk.Frame(velocity_frame, bg='#f8f9fa')
+        velocity_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        
+        # Tipo di curva
+        curve_frame = tk.Frame(velocity_controls, bg='#f8f9fa')
+        curve_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        
+        curve_label = tk.Label(curve_frame, text="Type", font=('Segoe UI', 8), 
+                             bg='#f8f9fa', fg='#7f8c8d')
+        curve_label.pack(anchor='w')
+        
+        curve_dropdown = ttk.Combobox(curve_frame, 
+                                    textvariable=self.velocity_curve_var,
+                                    values=["linear", "exponential", "logarithmic", "sine", "random"],
+                                    state="readonly", width=12, font=('Segoe UI', 8))
+        curve_dropdown.pack(fill='x')
+        curve_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
+        
+        # Intensità
+        intensity_frame = tk.Frame(velocity_controls, bg='#f8f9fa')
+        intensity_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        
+        intensity_label = tk.Label(intensity_frame, text="Intensity", font=('Segoe UI', 8), 
+                                 bg='#f8f9fa', fg='#7f8c8d')
+        intensity_label.pack(anchor='w')
+        
+        intensity_scale = tk.Scale(intensity_frame, from_=0.1, to=2.0, resolution=0.1,
+                                 variable=self.velocity_intensity_var, orient='horizontal',
+                                 length=80, showvalue=0, bg='#f8f9fa',
+                                 command=self.on_effect_change)
+        intensity_scale.pack(fill='x')
+        
+        intensity_value = tk.Label(intensity_frame, text="1.0", font=('Segoe UI', 8), 
+                                 bg='#f8f9fa', fg='#2c3e50')
+        intensity_value.pack(anchor='w')
+        
+        # Update intensity label
+        def update_intensity(*_):
+            intensity_value.config(text=f"{self.velocity_intensity_var.get():.1f}")
+        self.velocity_intensity_var.trace('w', update_intensity)
+    
+    def create_accent_controls(self, parent):
+        """Crea i controlli per i pattern di accento"""
+        accent_frame = tk.Frame(parent, bg='#f8f9fa')
+        accent_frame.pack(fill='x', pady=(0, 8))
+        
+        # Checkbox per abilitare accenti
+        accent_check = tk.Checkbutton(accent_frame, text="Accent Patterns", 
+                                    variable=self.accent_enabled_var,
+                                    font=('Segoe UI', 9, 'bold'),
+                                    bg='#f8f9fa', fg='#2c3e50',
+                                    command=self.on_effect_change)
+        accent_check.pack(anchor='w')
+        
+        # Controlli accento (solo se abilitato)
+        accent_controls = tk.Frame(accent_frame, bg='#f8f9fa')
+        accent_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        
+        # Pattern di accento
+        pattern_frame = tk.Frame(accent_controls, bg='#f8f9fa')
+        pattern_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        
+        pattern_label = tk.Label(pattern_frame, text="Pattern", font=('Segoe UI', 8), 
+                               bg='#f8f9fa', fg='#7f8c8d')
+        pattern_label.pack(anchor='w')
+        
+        pattern_dropdown = ttk.Combobox(pattern_frame, 
+                                      textvariable=self.accent_pattern_var,
+                                      values=["every_beat", "every_other", "random", "crescendo", "diminuendo"],
+                                      state="readonly", width=12, font=('Segoe UI', 8))
+        pattern_dropdown.pack(fill='x')
+        pattern_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
+        
+        # Forza accento
+        strength_frame = tk.Frame(accent_controls, bg='#f8f9fa')
+        strength_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        
+        strength_label = tk.Label(strength_frame, text="Strength", font=('Segoe UI', 8), 
+                                bg='#f8f9fa', fg='#7f8c8d')
+        strength_label.pack(anchor='w')
+        
+        strength_scale = tk.Scale(strength_frame, from_=0.1, to=1.0, resolution=0.1,
+                                variable=self.accent_strength_var, orient='horizontal',
+                                length=80, showvalue=0, bg='#f8f9fa',
+                                command=self.on_effect_change)
+        strength_scale.pack(fill='x')
+        
+        strength_value = tk.Label(strength_frame, text="0.5", font=('Segoe UI', 8), 
+                                bg='#f8f9fa', fg='#2c3e50')
+        strength_value.pack(anchor='w')
+        
+        # Update strength label
+        def update_strength(*_):
+            strength_value.config(text=f"{self.accent_strength_var.get():.1f}")
+        self.accent_strength_var.trace('w', update_strength)
+    
+    def create_repeater_controls(self, parent):
+        """Crea i controlli per il ripetitore di note"""
+        repeater_frame = tk.Frame(parent, bg='#f8f9fa')
+        repeater_frame.pack(fill='x', pady=(0, 8))
+        
+        # Checkbox per abilitare repeater
+        repeater_check = tk.Checkbutton(repeater_frame, text="Note Repeater", 
+                                      variable=self.repeater_enabled_var,
+                                      font=('Segoe UI', 9, 'bold'),
+                                      bg='#f8f9fa', fg='#2c3e50',
+                                      command=self.on_effect_change)
+        repeater_check.pack(anchor='w')
+        
+        # Controlli repeater (solo se abilitato)
+        repeater_controls = tk.Frame(repeater_frame, bg='#f8f9fa')
+        repeater_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        
+        # Numero di ripetizioni
+        count_frame = tk.Frame(repeater_controls, bg='#f8f9fa')
+        count_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        
+        count_label = tk.Label(count_frame, text="Count", font=('Segoe UI', 8), 
+                             bg='#f8f9fa', fg='#7f8c8d')
+        count_label.pack(anchor='w')
+        
+        count_scale = tk.Scale(count_frame, from_=1, to=8, resolution=1,
+                             variable=self.repeat_count_var, orient='horizontal',
+                             length=80, showvalue=0, bg='#f8f9fa',
+                             command=self.on_effect_change)
+        count_scale.pack(fill='x')
+        
+        count_value = tk.Label(count_frame, text="2", font=('Segoe UI', 8), 
+                             bg='#f8f9fa', fg='#2c3e50')
+        count_value.pack(anchor='w')
+        
+        # Timing
+        timing_frame = tk.Frame(repeater_controls, bg='#f8f9fa')
+        timing_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        
+        timing_label = tk.Label(timing_frame, text="Timing", font=('Segoe UI', 8), 
+                              bg='#f8f9fa', fg='#7f8c8d')
+        timing_label.pack(anchor='w')
+        
+        timing_dropdown = ttk.Combobox(timing_frame, 
+                                     textvariable=self.repeat_timing_var,
+                                     values=["immediate", "staccato", "legato", "swing"],
+                                     state="readonly", width=12, font=('Segoe UI', 8))
+        timing_dropdown.pack(fill='x')
+        timing_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
+        
+        # Update count label
+        def update_count(*_):
+            count_value.config(text=str(self.repeat_count_var.get()))
+        self.repeat_count_var.trace('w', update_count)
+    
+    def create_chord_gen_controls(self, parent):
+        """Crea i controlli per il generatore di accordi"""
+        chord_gen_frame = tk.Frame(parent, bg='#f8f9fa')
+        chord_gen_frame.pack(fill='x', pady=(0, 8))
+        
+        # Checkbox per abilitare chord generator
+        chord_gen_check = tk.Checkbutton(chord_gen_frame, text="Chord Generator", 
+                                       variable=self.chord_gen_enabled_var,
+                                       font=('Segoe UI', 9, 'bold'),
+                                       bg='#f8f9fa', fg='#2c3e50',
+                                       command=self.on_effect_change)
+        chord_gen_check.pack(anchor='w')
+        
+        # Controlli chord generator (solo se abilitato)
+        chord_gen_controls = tk.Frame(chord_gen_frame, bg='#f8f9fa')
+        chord_gen_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        
+        # Variazione accordo
+        variation_frame = tk.Frame(chord_gen_controls, bg='#f8f9fa')
+        variation_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        
+        variation_label = tk.Label(variation_frame, text="Variation", font=('Segoe UI', 8), 
+                                 bg='#f8f9fa', fg='#7f8c8d')
+        variation_label.pack(anchor='w')
+        
+        variation_dropdown = ttk.Combobox(variation_frame, 
+                                        textvariable=self.chord_variation_var,
+                                        values=["inversion", "extension", "substitution", "voicing"],
+                                        state="readonly", width=12, font=('Segoe UI', 8))
+        variation_dropdown.pack(fill='x')
+        variation_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
+        
+        # Voicing
+        voicing_frame = tk.Frame(chord_gen_controls, bg='#f8f9fa')
+        voicing_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        
+        voicing_label = tk.Label(voicing_frame, text="Voicing", font=('Segoe UI', 8), 
+                               bg='#f8f9fa', fg='#7f8c8d')
+        voicing_label.pack(anchor='w')
+        
+        voicing_dropdown = ttk.Combobox(voicing_frame, 
+                                      textvariable=self.voicing_var,
+                                      values=["close", "open", "drop2", "drop3", "spread"],
+                                      state="readonly", width=12, font=('Segoe UI', 8))
+        voicing_dropdown.pack(fill='x')
+        voicing_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
+    
     def create_pattern_controls_compact(self, parent):
         """Crea i controlli pattern in formato compatto con tooltip"""
         pattern_frame = ttk.LabelFrame(parent, text="🎯 Pattern Selection", 
@@ -942,6 +1309,26 @@ class CreativeChordWindow:
         self.log_message(f"Note duration changed to: {duration}")
         self.update_parameters_realtime()
     
+    def increase_octave_add(self):
+        """Aumenta l'ottava da aggiungere"""
+        current = self.octave_add_var.get()
+        if current < 3:
+            self.octave_add_var.set(current + 1)
+            self.on_effect_change()
+    
+    def decrease_octave_add(self):
+        """Diminuisce l'ottava da aggiungere"""
+        current = self.octave_add_var.get()
+        if current > -3:
+            self.octave_add_var.set(current - 1)
+            self.on_effect_change()
+    
+    def on_effect_change(self, event=None):
+        """Gestisce il cambio di effetti MIDI"""
+        del event  # Ignora il parametro event non utilizzato
+        self.log_message("MIDI effects changed")
+        self.update_parameters_realtime()
+    
     
     def update_parameters_realtime(self):
         """Aggiorna i parametri in tempo reale durante la riproduzione"""
@@ -961,7 +1348,23 @@ class CreativeChordWindow:
                     duration_octaves=self.duration_octaves_var.get(),
                     playback_speed=self.playback_speed_var.get(),
                     bpm=self.bpm_var.get(),
-                    pause_duration=self.get_pause_duration_seconds()
+                    pause_duration=self.get_pause_duration_seconds(),
+                    # MIDI Effects
+                    delay_enabled=self.delay_enabled_var.get(),
+                    delay_time=self.delay_time_var.get(),
+                    delay_feedback=self.delay_feedback_var.get(),
+                    octave_add=self.octave_add_var.get(),
+                    velocity_curve=self.velocity_curve_var.get(),
+                    velocity_intensity=self.velocity_intensity_var.get(),
+                    accent_enabled=self.accent_enabled_var.get(),
+                    accent_strength=self.accent_strength_var.get(),
+                    accent_pattern=self.accent_pattern_var.get(),
+                    repeater_enabled=self.repeater_enabled_var.get(),
+                    repeat_count=self.repeat_count_var.get(),
+                    repeat_timing=self.repeat_timing_var.get(),
+                    chord_gen_enabled=self.chord_gen_enabled_var.get(),
+                    chord_variation=self.chord_variation_var.get(),
+                    voicing=self.voicing_var.get()
                 )
                 
                 self.log_message("Parameters updated in real-time")
@@ -1082,7 +1485,23 @@ class CreativeChordWindow:
                 self.playback_speed_var.get(),
                 self.bpm_var.get(),
                 self.get_pause_duration_seconds(),
-                self.on_playback_finished
+                self.on_playback_finished,
+                # MIDI Effects
+                delay_enabled=self.delay_enabled_var.get(),
+                delay_time=self.delay_time_var.get(),
+                delay_feedback=self.delay_feedback_var.get(),
+                octave_add=self.octave_add_var.get(),
+                velocity_curve=self.velocity_curve_var.get(),
+                velocity_intensity=self.velocity_intensity_var.get(),
+                accent_enabled=self.accent_enabled_var.get(),
+                accent_strength=self.accent_strength_var.get(),
+                accent_pattern=self.accent_pattern_var.get(),
+                repeater_enabled=self.repeater_enabled_var.get(),
+                repeat_count=self.repeat_count_var.get(),
+                repeat_timing=self.repeat_timing_var.get(),
+                chord_gen_enabled=self.chord_gen_enabled_var.get(),
+                chord_variation=self.chord_variation_var.get(),
+                voicing=self.voicing_var.get()
             )
             
         except (ValueError, RuntimeError, OSError) as e:

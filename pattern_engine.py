@@ -85,11 +85,34 @@ class PatternEngine:
         self.current_bpm = 120
         self.current_pause_duration = 0.0
         self.param_lock = threading.Lock()
+        
+        # MIDI Effects parameters
+        self.current_delay_enabled = False
+        self.current_delay_time = 0.25
+        self.current_delay_feedback = 0.3
+        self.current_octave_add = 0
+        self.current_velocity_curve = "linear"
+        self.current_velocity_intensity = 1.0
+        self.current_accent_enabled = False
+        self.current_accent_strength = 0.5
+        self.current_accent_pattern = "every_beat"
+        self.current_repeater_enabled = False
+        self.current_repeat_count = 2
+        self.current_repeat_timing = "immediate"
+        self.current_chord_gen_enabled = False
+        self.current_chord_variation = "inversion"
+        self.current_voicing = "close"
     
     def update_parameters(self, sound_cell: SoundCell = None, pattern_type: PatternType = None,
                          octave: int = None, base_duration: float = None,
                          loop: bool = None, reverse: bool = None, duration_octaves: int = None,
-                         playback_speed: float = None, bpm: int = None, pause_duration: float = None):
+                         playback_speed: float = None, bpm: int = None, pause_duration: float = None,
+                         # MIDI Effects
+                         delay_enabled: bool = None, delay_time: float = None, delay_feedback: float = None,
+                         octave_add: int = None, velocity_curve: str = None, velocity_intensity: float = None,
+                         accent_enabled: bool = None, accent_strength: float = None, accent_pattern: str = None,
+                         repeater_enabled: bool = None, repeat_count: int = None, repeat_timing: str = None,
+                         chord_gen_enabled: bool = None, chord_variation: str = None, voicing: str = None):
         """Aggiorna i parametri in tempo reale durante la riproduzione"""
         with self.param_lock:
             if sound_cell is not None:
@@ -112,11 +135,49 @@ class PatternEngine:
                 self.current_bpm = bpm
             if pause_duration is not None:
                 self.current_pause_duration = pause_duration
+            
+            # MIDI Effects
+            if delay_enabled is not None:
+                self.current_delay_enabled = delay_enabled
+            if delay_time is not None:
+                self.current_delay_time = delay_time
+            if delay_feedback is not None:
+                self.current_delay_feedback = delay_feedback
+            if octave_add is not None:
+                self.current_octave_add = octave_add
+            if velocity_curve is not None:
+                self.current_velocity_curve = velocity_curve
+            if velocity_intensity is not None:
+                self.current_velocity_intensity = velocity_intensity
+            if accent_enabled is not None:
+                self.current_accent_enabled = accent_enabled
+            if accent_strength is not None:
+                self.current_accent_strength = accent_strength
+            if accent_pattern is not None:
+                self.current_accent_pattern = accent_pattern
+            if repeater_enabled is not None:
+                self.current_repeater_enabled = repeater_enabled
+            if repeat_count is not None:
+                self.current_repeat_count = repeat_count
+            if repeat_timing is not None:
+                self.current_repeat_timing = repeat_timing
+            if chord_gen_enabled is not None:
+                self.current_chord_gen_enabled = chord_gen_enabled
+            if chord_variation is not None:
+                self.current_chord_variation = chord_variation
+            if voicing is not None:
+                self.current_voicing = voicing
     
     def update_parameters_safe(self, sound_cell: SoundCell = None, pattern_type: PatternType = None,
                               octave: int = None, base_duration: float = None,
                               loop: bool = None, reverse: bool = None, duration_octaves: int = None,
-                              playback_speed: float = None, bpm: int = None, pause_duration: float = None):
+                              playback_speed: float = None, bpm: int = None, pause_duration: float = None,
+                              # MIDI Effects
+                              delay_enabled: bool = None, delay_time: float = None, delay_feedback: float = None,
+                              octave_add: int = None, velocity_curve: str = None, velocity_intensity: float = None,
+                              accent_enabled: bool = None, accent_strength: float = None, accent_pattern: str = None,
+                              repeater_enabled: bool = None, repeat_count: int = None, repeat_timing: str = None,
+                              chord_gen_enabled: bool = None, chord_variation: str = None, voicing: str = None):
         """Aggiorna i parametri in modo sicuro, fermando la riproduzione se necessario"""
         # Se stiamo cambiando parametri critici, ferma la riproduzione corrente
         critical_changes = (sound_cell is not None or pattern_type is not None or 
@@ -128,7 +189,10 @@ class PatternEngine:
             time.sleep(0.05)
         
         self.update_parameters(sound_cell, pattern_type, octave, base_duration, 
-                              loop, reverse, duration_octaves, playback_speed, bpm, pause_duration)
+                              loop, reverse, duration_octaves, playback_speed, bpm, pause_duration,
+                              delay_enabled, delay_time, delay_feedback, octave_add, velocity_curve, velocity_intensity,
+                              accent_enabled, accent_strength, accent_pattern, repeater_enabled, repeat_count, repeat_timing,
+                              chord_gen_enabled, chord_variation, voicing)
     
     def get_current_parameters(self):
         """Ottiene i parametri correnti in modo thread-safe"""
@@ -768,13 +832,22 @@ class PatternEngine:
                     octave: int = 4, base_duration: float = 0.3, 
                     loop: bool = False, reverse: bool = False, 
                     duration_octaves: int = 1, playback_speed: float = 1.0, 
-                    bpm: int = 120, pause_duration: float = 0.0, callback: Optional[Callable] = None):
+                    bpm: int = 120, pause_duration: float = 0.0, callback: Optional[Callable] = None,
+                    # MIDI Effects
+                    delay_enabled: bool = False, delay_time: float = 0.25, delay_feedback: float = 0.3,
+                    octave_add: int = 0, velocity_curve: str = "linear", velocity_intensity: float = 1.0,
+                    accent_enabled: bool = False, accent_strength: float = 0.5, accent_pattern: str = "every_beat",
+                    repeater_enabled: bool = False, repeat_count: int = 2, repeat_timing: str = "immediate",
+                    chord_gen_enabled: bool = False, chord_variation: str = "inversion", voicing: str = "close"):
         """Riproduce un pattern con le note specificate"""
         if self.is_playing:
             self.stop_pattern()
         
         # Inizializza i parametri correnti
-        self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm, pause_duration)
+        self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm, pause_duration,
+                              delay_enabled, delay_time, delay_feedback, octave_add, velocity_curve, velocity_intensity,
+                              accent_enabled, accent_strength, accent_pattern, repeater_enabled, repeat_count, repeat_timing,
+                              chord_gen_enabled, chord_variation, voicing)
         
         self.is_playing = True
         self.is_looping = loop
@@ -836,7 +909,7 @@ class PatternEngine:
                         
                         # Riproduce la nota (applica la velocità di riproduzione)
                         adjusted_duration = note_event.duration / current_playback_speed
-                        self._play_single_note(midi_note, adjusted_duration, note_event.volume)
+                        self._play_single_note(midi_note, adjusted_duration, note_event.volume, i, len(all_pattern_notes))
                         
                         # Aggiunge timing tra le note per seguire il pattern temporale
                         # Solo se non è l'ultima nota e non è in loop continuo
@@ -875,7 +948,7 @@ class PatternEngine:
         self.current_thread.daemon = True
         self.current_thread.start()
     
-    def _play_single_note(self, midi_note: int, duration: float, volume: float):
+    def _play_single_note(self, midi_note: int, duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
         """Riproduce una singola nota in modo sincrono con controlli di stop"""
         try:
             # Controlla se dobbiamo fermarci prima di iniziare
@@ -884,7 +957,7 @@ class PatternEngine:
             
             # Se MIDI è configurato, invia via MIDI invece di pygame
             if self.midi_output and self.midi_output.initialized and self.midi_output.output_port:
-                self._play_single_note_midi(midi_note, duration, volume)
+                self._play_single_note_midi(midi_note, duration, volume, note_index, total_notes)
                 return
                 
             # Altrimenti usa pygame (comportamento originale)
@@ -892,26 +965,172 @@ class PatternEngine:
         except (OSError, RuntimeError, ValueError) as e:
             print(f"Errore nella riproduzione della nota: {e}")
     
-    def _play_single_note_midi(self, midi_note: int, duration: float, volume: float):
+    def _apply_midi_effects(self, midi_note: int, velocity: int, note_index: int = 0, total_notes: int = 1):
+        """Applica gli effetti MIDI a una nota"""
+        # Ottieni i parametri correnti
+        params = self.get_current_parameters()
+        
+        # Ottava addition
+        if params['octave_add'] != 0:
+            midi_note += params['octave_add'] * 12
+            midi_note = max(0, min(127, midi_note))  # Clamp to valid MIDI range
+        
+        # Velocity curve
+        if params['velocity_curve'] != "linear":
+            velocity = self._apply_velocity_curve(velocity, note_index, total_notes, params['velocity_curve'], params['velocity_intensity'])
+        
+        # Accent patterns
+        if params['accent_enabled']:
+            velocity = self._apply_accent_pattern(velocity, note_index, total_notes, params['accent_pattern'], params['accent_strength'])
+        
+        return midi_note, velocity
+    
+    def _apply_delay_effect(self, midi_note: int, velocity: int, duration: float):
+        """Applica l'effetto delay (MIDI echo)"""
+        params = self.get_current_parameters()
+        
+        if not params['delay_enabled']:
+            return [(midi_note, velocity, duration)]
+        
+        # delay_time = params['delay_time']  # Not used in current implementation
+        feedback = params['delay_feedback']
+        
+        # Crea gli echi
+        echoes = [(midi_note, velocity, duration)]
+        current_velocity = velocity
+        current_duration = duration
+        
+        # Genera fino a 3 echi
+        for _ in range(3):
+            current_velocity = int(current_velocity * feedback)
+            if current_velocity < 10:  # Soglia minima per evitare note troppo deboli
+                break
+            
+            echoes.append((midi_note, current_velocity, current_duration * 0.8))
+            current_duration *= 0.8
+        
+        return echoes
+    
+    def _apply_repeater_effect(self, midi_note: int, velocity: int, duration: float):
+        """Applica l'effetto note repeater"""
+        params = self.get_current_parameters()
+        
+        if not params['repeater_enabled']:
+            return [(midi_note, velocity, duration)]
+        
+        repeat_count = params['repeat_count']
+        timing = params['repeat_timing']
+        
+        repeats = []
+        
+        for i in range(repeat_count):
+            if timing == "immediate":
+                # Ripetizione immediata
+                repeat_duration = duration * 0.3
+            elif timing == "staccato":
+                # Staccato - note corte e separate
+                repeat_duration = duration * 0.2
+            elif timing == "legato":
+                # Legato - note che si sovrappongono
+                repeat_duration = duration * 0.8
+            elif timing == "swing":
+                # Swing - durata variabile
+                repeat_duration = duration * (0.3 if i % 2 == 0 else 0.7)
+            else:
+                repeat_duration = duration * 0.5
+            
+            repeats.append((midi_note, velocity, repeat_duration))
+        
+        return repeats
+    
+    def _apply_velocity_curve(self, velocity: int, note_index: int, total_notes: int, curve_type: str, intensity: float):
+        """Applica una curva di velocità alle note"""
+        if curve_type == "linear":
+            return velocity
+        
+        # Normalizza l'indice della nota (0-1)
+        normalized_index = note_index / max(1, total_notes - 1) if total_notes > 1 else 0
+        
+        if curve_type == "exponential":
+            # Curva esponenziale crescente
+            curve_value = normalized_index ** (1 / intensity)
+        elif curve_type == "logarithmic":
+            # Curva logaritmica crescente
+            curve_value = (normalized_index ** intensity) if intensity > 0 else normalized_index
+        elif curve_type == "sine":
+            # Curva sinusoidale
+            import math
+            curve_value = (math.sin(normalized_index * math.pi) + 1) / 2
+        elif curve_type == "random":
+            # Velocità casuale
+            curve_value = random.random()
+        else:
+            curve_value = normalized_index
+        
+        # Applica la curva alla velocità
+        new_velocity = int(velocity * curve_value * intensity)
+        return max(1, min(127, new_velocity))
+    
+    def _apply_accent_pattern(self, velocity: int, note_index: int, total_notes: int, pattern: str, strength: float):
+        """Applica pattern di accento alle note"""
+        if pattern == "every_beat":
+            # Accentua ogni nota
+            accent_multiplier = 1.0 + strength
+        elif pattern == "every_other":
+            # Accentua ogni altra nota
+            accent_multiplier = 1.0 + (strength if note_index % 2 == 0 else 0)
+        elif pattern == "random":
+            # Accentua casualmente
+            accent_multiplier = 1.0 + (strength if random.random() < 0.3 else 0)
+        elif pattern == "crescendo":
+            # Crescendo - accentua di più verso la fine
+            normalized_index = note_index / max(1, total_notes - 1) if total_notes > 1 else 0
+            accent_multiplier = 1.0 + (strength * normalized_index)
+        elif pattern == "diminuendo":
+            # Diminuendo - accentua di più all'inizio
+            normalized_index = note_index / max(1, total_notes - 1) if total_notes > 1 else 0
+            accent_multiplier = 1.0 + (strength * (1 - normalized_index))
+        else:
+            accent_multiplier = 1.0
+        
+        new_velocity = int(velocity * accent_multiplier)
+        return max(1, min(127, new_velocity))
+    
+    def _play_single_note_midi(self, midi_note: int, duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
         """Riproduce una singola nota via MIDI - VERSIONE SINCRONA SENZA THREAD"""
         try:
             # Controlla se dobbiamo fermarci prima di iniziare
             if self.stop_requested:
                 return
             
-            # Invia Note On
+            # Applica effetti MIDI
             velocity = int(volume * 127)  # Converte volume (0-1) a velocity (0-127)
-            # print(f"Sending MIDI note: {midi_note} (velocity: {velocity}, duration: {duration:.3f}s)")  # Debug commentato
+            midi_note, velocity = self._apply_midi_effects(midi_note, velocity, note_index, total_notes)
             
-            self.midi_output.send_note_on(midi_note, velocity)
+            # Applica effetti di delay e repeater
+            delay_notes = self._apply_delay_effect(midi_note, velocity, duration)
+            repeater_notes = self._apply_repeater_effect(midi_note, velocity, duration)
             
-            # Aspetta per la durata specificata della nota (SINCRONO)
-            time.sleep(duration)
+            # Combina gli effetti (delay + repeater)
+            all_notes = []
+            for delay_note, _, delay_duration in delay_notes:
+                for _, repeat_velocity, repeat_duration in repeater_notes:
+                    all_notes.append((delay_note, repeat_velocity, min(delay_duration, repeat_duration)))
             
-            # Invia Note Off solo se non è stato richiesto di fermare
-            if not self.stop_requested:
-                self.midi_output.send_note_off(midi_note)
-                # print(f"Note Off: {midi_note}")  # Debug commentato
+            # Riproduce tutte le note generate dagli effetti
+            for note, vel, dur in all_notes:
+                if self.stop_requested:
+                    break
+                
+                # Invia Note On
+                self.midi_output.send_note_on(note, vel)
+                
+                # Aspetta per la durata specificata della nota
+                time.sleep(dur)
+                
+                # Invia Note Off solo se non è stato richiesto di fermare
+                if not self.stop_requested:
+                    self.midi_output.send_note_off(note)
             
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio MIDI: {e}")
