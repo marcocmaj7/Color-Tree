@@ -642,7 +642,7 @@ class ColorTreeDisplayApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Color Tree")
-        self.root.geometry("1825x955")
+        self.root.geometry("1825x955")  # Altezza originale per zoom 1×
         self.root.configure(bg='#f0f0f0')
         
         self.generator = ChordGenerator()
@@ -650,16 +650,19 @@ class ColorTreeDisplayApp:
         self.midi_output = MIDIOutput()
         self.color_tree_levels = []
         self.display_mode = "intervals"  # "intervals" or "notes"
-        self.blue_tone = "classic"  # "classic", "navy", "royal", "sky"
+        self.zoom_level = 1.0  # Zoom level for window scaling
         
         # Inizializza i bottoni
         self.intervals_btn = None
         self.notes_btn = None
         
         # Inizializza le variabili per i controlli
-        self.blue_tone_var = None
         self.midi_port_var = None
         self.midi_combo = None
+        
+        # Inizializza le variabili per i controlli zoom
+        self.zoom_100_btn = None
+        self.zoom_buttons = []
         
         # Variabile per la sound cell selezionata per la finestra creativa
         self.selected_sound_cell = None
@@ -686,17 +689,17 @@ class ColorTreeDisplayApp:
         # Nota radice - compatta
         ttk.Label(controls_frame, text="Nota:", font=('Arial', 10)).grid(row=0, column=0, padx=(0, 5))
         self.root_note_var = tk.StringVar(value="C")
-        root_combo = ttk.Combobox(controls_frame, textvariable=self.root_note_var,
+        self.root_combo = ttk.Combobox(controls_frame, textvariable=self.root_note_var,
                                  values=[note.name.replace('_', '#') for note in Note],
                                  state="readonly", width=8)
-        root_combo.grid(row=0, column=1, padx=(0, 20))
-        root_combo.bind('<<ComboboxSelected>>', self.on_root_note_change)
+        self.root_combo.grid(row=0, column=1, padx=(0, 20))
+        self.root_combo.bind('<<ComboboxSelected>>', self.on_root_note_change)
         
         # Switch per modalità visualizzazione
         self.create_display_mode_switch(controls_frame, 0, 2)
         
-        # Selettore tonalità blu
-        self.create_blue_tone_selector(controls_frame, 0, 3)
+        # Selettore zoom
+        self.create_zoom_selector(controls_frame, 0, 3)
         
         # Frame per la visualizzazione della Color Tree - layout orizzontale
         self.tree_frame = ttk.Frame(main_frame)
@@ -723,7 +726,8 @@ class ColorTreeDisplayApp:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(3, weight=1)
+        main_frame.rowconfigure(1, weight=1)  # La Color Tree occupa lo spazio principale
+        main_frame.rowconfigure(2, weight=0)  # I controlli in basso hanno spazio fisso
         self.tree_frame.columnconfigure(0, weight=1)
         self.tree_frame.rowconfigure(0, weight=1)
     
@@ -752,22 +756,42 @@ class ColorTreeDisplayApp:
         # Inizializza lo stato dei bottoni
         self.update_button_states()
     
-    def create_blue_tone_selector(self, parent, row, column):
-        """Crea il selettore per le tonalità di blu"""
+    def create_zoom_selector(self, parent, row, column):
+        """Crea il selettore per lo zoom della finestra"""
         # Frame contenitore
-        tone_frame = tk.Frame(parent, bg='#f0f0f0')
-        tone_frame.grid(row=row, column=column, padx=(10, 0))
+        zoom_frame = tk.Frame(parent, bg='#f0f0f0')
+        zoom_frame.grid(row=row, column=column, padx=(10, 0))
         
         # Label
-        ttk.Label(tone_frame, text="Tonalità:", font=('Arial', 10)).pack(side='left', padx=(0, 5))
+        ttk.Label(zoom_frame, text="Zoom:", font=('Arial', 10)).pack(side='left', padx=(0, 5))
         
-        # Combobox per le tonalità
-        self.blue_tone_var = tk.StringVar(value="Classic")
-        tone_combo = ttk.Combobox(tone_frame, textvariable=self.blue_tone_var,
-                                 values=["Classic", "Navy", "Royal", "Sky"],
-                                 state="readonly", width=10)
-        tone_combo.pack(side='left')
-        tone_combo.bind('<<ComboboxSelected>>', self.on_blue_tone_change)
+        # Bottone 0.5x
+        zoom_50_btn = tk.Button(zoom_frame, text="0.5×", 
+                               font=('Arial', 9, 'bold'), 
+                               width=4, height=1,
+                               relief='raised', bd=1,
+                               command=lambda: self.set_zoom(0.5))
+        zoom_50_btn.pack(side='left', padx=(0, 2))
+        
+        # Bottone 0.75x
+        zoom_75_btn = tk.Button(zoom_frame, text="0.75×", 
+                               font=('Arial', 9, 'bold'), 
+                               width=4, height=1,
+                               relief='raised', bd=1,
+                               command=lambda: self.set_zoom(0.75))
+        zoom_75_btn.pack(side='left', padx=(0, 2))
+        
+        # Bottone 1x (naturale)
+        self.zoom_100_btn = tk.Button(zoom_frame, text="1×", 
+                                     font=('Arial', 9, 'bold'), 
+                                     width=4, height=1,
+                                     relief='sunken', bd=1,
+                                     command=lambda: self.set_zoom(1.0))
+        self.zoom_100_btn.pack(side='left')
+        
+        # Inizializza le variabili per i controlli zoom
+        self.zoom_level = 1.0
+        self.zoom_buttons = [zoom_50_btn, zoom_75_btn, self.zoom_100_btn]
     
     def create_midi_controls(self):
         """Crea i controlli MIDI in basso a destra"""
@@ -786,6 +810,9 @@ class ColorTreeDisplayApp:
                                       state="readonly", width=20)
         self.midi_combo.pack(side='left', padx=(0, 5))
         self.midi_combo.bind('<<ComboboxSelected>>', self.on_midi_port_change)
+        
+        # Applica il ridimensionamento iniziale
+        self.update_control_sizes()
         
         # Bottone per aggiornare le porte MIDI
         refresh_btn = tk.Button(midi_container, text="🔄", 
@@ -809,6 +836,9 @@ class ColorTreeDisplayApp:
                                      command=self.open_creative_window,
                                      width=12, height=2)
         self.creative_btn.pack(side='left')
+        
+        # Applica il ridimensionamento iniziale
+        self.update_control_sizes()
         
         # Label di istruzioni
         instruction_label = tk.Label(creative_container, 
@@ -873,17 +903,94 @@ class ColorTreeDisplayApp:
         del event  # Ignora il parametro event non utilizzato
         self.generate_color_tree()
     
-    def on_blue_tone_change(self, event=None):
-        """Gestisce il cambio della tonalità blu"""
-        del event  # Ignora il parametro event non utilizzato
-        tone_map = {
-            "Classic": "classic",
-            "Navy": "navy", 
-            "Royal": "royal",
-            "Sky": "sky"
-        }
-        self.blue_tone = tone_map.get(self.blue_tone_var.get(), "classic")
+    def set_zoom(self, zoom_level):
+        """Imposta il livello di zoom della finestra"""
+        self.zoom_level = zoom_level
+        
+        # Aggiorna lo stato dei bottoni zoom
+        for i, btn in enumerate(self.zoom_buttons):
+            if (zoom_level == 0.5 and i == 0) or (zoom_level == 0.75 and i == 1) or (zoom_level == 1.0 and i == 2):
+                btn.config(relief='sunken', bg='#4CAF50', fg='white')
+            else:
+                btn.config(relief='raised', bg='#F5F5F5', fg='#666666')
+        
+        # Calcola le nuove dimensioni della finestra
+        base_width = 1825
+        # Usa altezze diverse per garantire che tutti gli elementi siano visibili
+        if zoom_level >= 1.0:
+            base_height = 955  # Altezza originale per zoom 1×
+        else:
+            base_height = 1100  # Altezza aumentata per zoom ridotti
+        new_width = int(base_width * zoom_level)
+        new_height = int(base_height * zoom_level)
+        
+        # Ridimensiona la finestra
+        self.root.geometry(f"{new_width}x{new_height}")
+        
+        # Aggiorna le dimensioni dei controlli MIDI e creativi
+        self.update_control_sizes()
+        
+        # Aggiorna le dimensioni delle sound cells
         self.generate_color_tree()
+    
+    def update_control_sizes(self):
+        """Aggiorna le dimensioni dei controlli in base al zoom"""
+        # Aggiorna le dimensioni dei bottoni zoom
+        for btn in self.zoom_buttons:
+            if btn:
+                btn.config(font=('Arial', max(6, int(9 * self.zoom_level)), 'bold'))
+        
+        # Aggiorna le dimensioni del combobox della nota radice
+        if hasattr(self, 'root_combo') and self.root_combo:
+            self.root_combo.config(font=('Arial', max(8, int(10 * self.zoom_level))))
+        
+        # Aggiorna le dimensioni dei controlli MIDI
+        if hasattr(self, 'midi_combo') and self.midi_combo:
+            self.midi_combo.config(font=('Arial', max(8, int(10 * self.zoom_level))))
+        
+        # Aggiorna le dimensioni del bottone creativo
+        if hasattr(self, 'creative_btn') and self.creative_btn:
+            self.creative_btn.config(font=('Arial', max(8, int(10 * self.zoom_level)), 'bold'))
+        
+        # Aggiorna le dimensioni dei bottoni di modalità visualizzazione
+        if hasattr(self, 'intervals_btn') and self.intervals_btn:
+            self.intervals_btn.config(font=('Arial', max(6, int(8 * self.zoom_level)), 'bold'))
+        if hasattr(self, 'notes_btn') and self.notes_btn:
+            self.notes_btn.config(font=('Arial', max(7, int(10 * self.zoom_level)), 'bold'))
+        
+        # Aggiorna le dimensioni dei label
+        for widget in self.root.winfo_children():
+            self._update_widget_fonts(widget)
+    
+    def _update_widget_fonts(self, widget):
+        """Aggiorna ricorsivamente i font di tutti i widget"""
+        try:
+            # Se il widget ha un attributo font, aggiornalo
+            if hasattr(widget, 'config') and 'font' in widget.config():
+                current_font = widget.cget('font')
+                if isinstance(current_font, tuple) and len(current_font) >= 2:
+                    # Estrae la famiglia del font e lo stile
+                    font_family = current_font[0] if current_font[0] else 'Arial'
+                    font_style = current_font[1] if len(current_font) > 1 else ''
+                    font_size = current_font[2] if len(current_font) > 2 else 10
+                    
+                    # Calcola la nuova dimensione
+                    new_size = max(6, int(font_size * self.zoom_level))
+                    
+                    # Applica il nuovo font
+                    if font_style:
+                        widget.config(font=(font_family, new_size, font_style))
+                    else:
+                        widget.config(font=(font_family, new_size))
+        except (tk.TclError, AttributeError):
+            pass
+        
+        # Ricorsivamente aggiorna i widget figli
+        try:
+            for child in widget.winfo_children():
+                self._update_widget_fonts(child)
+        except (tk.TclError, AttributeError):
+            pass
     
     def on_sound_cell_click(self, sound_cell: SoundCell):
         """Gestisce il click su una sound cell per riprodurre la scala MIDI"""
@@ -996,15 +1103,16 @@ class ColorTreeDisplayApp:
         total_cells = 12 if sound_cell.level == 12 else sound_cell.level
         bg_color = self._get_position_color(sound_cell.level, position, total_cells)
         
-        # Calcola la larghezza in base al livello
+        # Calcola la larghezza in base al livello e al zoom
         if sound_cell.level == 12:
             # Per il livello 12, mantiene la larghezza originale
-            cell_width = 130 * 12  # 12 caselle da 130px ciascuna (dimensione originale)
+            cell_width = int(130 * 12 * self.zoom_level)  # 12 caselle da 130px ciascuna (dimensione originale)
         else:
-            cell_width = 160  # Larghezza aumentata di 20px (140 + 20 = 160) per tutti gli altri livelli
+            cell_width = int(160 * self.zoom_level)  # Larghezza aumentata di 20px (140 + 20 = 160) per tutti gli altri livelli
         
         # Frame principale della sound cell - dimensioni bilanciate e centrate
-        main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=cell_width, height=70)
+        cell_height = int(70 * self.zoom_level)
+        main_cell = tk.Frame(parent, bg=bg_color, relief='raised', bd=1, width=cell_width, height=cell_height)
         main_cell.grid(row=0, column=position, padx=0, pady=1, sticky='')
         main_cell.pack_propagate(False)  # Mantiene le dimensioni fisse
         
@@ -1014,7 +1122,8 @@ class ColorTreeDisplayApp:
         main_cell.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         # Numeri delle quinte (in alto) - leggibili
-        fifths_frame = tk.Frame(main_cell, bg=bg_color, height=12)
+        fifths_height = int(12 * self.zoom_level)
+        fifths_frame = tk.Frame(main_cell, bg=bg_color, height=fifths_height)
         fifths_frame.pack(fill='x', padx=2, pady=1)
         # Aggiunge click handler al frame delle quinte
         fifths_frame.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
@@ -1023,16 +1132,18 @@ class ColorTreeDisplayApp:
         
         if sound_cell.level == 12:
             # Per il livello 12, mostra "Chromatic Scale" al centro
+            font_size = max(6, int(9 * self.zoom_level))
             chromatic_label = tk.Label(fifths_frame, text="Chromatic Scale", 
-                    bg=bg_color, font=('Arial', 9, 'bold'))
+                    bg=bg_color, font=('Arial', font_size, 'bold'))
             chromatic_label.pack(expand=True)
             # Aggiunge click handler al label
             chromatic_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
             chromatic_label.bind("<Enter>", lambda e: main_cell.config(relief='solid', bd=2))
             chromatic_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         else:
+            font_size = max(5, int(7 * self.zoom_level))
             left_label = tk.Label(fifths_frame, text=f"-{sound_cell.fifths_below}", 
-                    bg=bg_color, font=('Arial', 7, 'bold'))
+                    bg=bg_color, font=('Arial', font_size, 'bold'))
             left_label.pack(side='left')
             # Aggiunge click handler al label sinistro
             left_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
@@ -1040,7 +1151,7 @@ class ColorTreeDisplayApp:
             left_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
             
             right_label = tk.Label(fifths_frame, text=f"+{sound_cell.fifths_above}", 
-                    bg=bg_color, font=('Arial', 7, 'bold'))
+                    bg=bg_color, font=('Arial', font_size, 'bold'))
             right_label.pack(side='right')
             # Aggiunge click handler al label destro
             right_label.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
@@ -1048,7 +1159,8 @@ class ColorTreeDisplayApp:
             right_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         # Rappresentazione degli intervalli (centro) - bilanciata
-        circle_frame = tk.Frame(main_cell, bg=bg_color, height=55)
+        circle_height = int(55 * self.zoom_level)
+        circle_frame = tk.Frame(main_cell, bg=bg_color, height=circle_height)
         circle_frame.pack(fill='both', expand=True, padx=2, pady=1)
         # Aggiunge click handler al frame centrale
         circle_frame.bind("<Button-1>", lambda e: self.on_sound_cell_click(sound_cell))
@@ -1059,7 +1171,7 @@ class ColorTreeDisplayApp:
         if self.display_mode == "intervals":
             intervals = sound_cell.get_intervals()
             text = "-".join(intervals)
-            font_size = 9  # Font size per gli intervalli
+            font_size = max(6, int(9 * self.zoom_level))  # Font size per gli intervalli
         else:
             # Mostra le note musicali
             note_names = {
@@ -1069,7 +1181,7 @@ class ColorTreeDisplayApp:
             }
             notes = [note_names[note] for note in sound_cell.notes]
             text = "-".join(notes)
-            font_size = 8  # Font size per le note (diminuito di 1)
+            font_size = max(5, int(8 * self.zoom_level))  # Font size per le note (diminuito di 1)
         
         main_label = tk.Label(circle_frame, text=text, bg=bg_color, 
                 font=('Arial', font_size, 'bold'))
@@ -1081,7 +1193,8 @@ class ColorTreeDisplayApp:
         main_label.bind("<Leave>", lambda e: main_cell.config(relief='raised', bd=1))
         
         # Frame vuoto per mantenere la struttura
-        intervals_frame = tk.Frame(main_cell, bg=bg_color, height=12)
+        bottom_height = int(12 * self.zoom_level)
+        intervals_frame = tk.Frame(main_cell, bg=bg_color, height=bottom_height)
         intervals_frame.pack(fill='x', padx=2, pady=1)
         
         # Aggiunge click handler anche al frame vuoto
@@ -1099,16 +1212,18 @@ class ColorTreeDisplayApp:
             return '#808080'  # Neutro
     
     def _get_position_color(self, level: int, position: int, total_cells: int) -> str:
-        """Calcola il colore basato sulla posizione e sulla tonalità blu selezionata"""
+        """Calcola il colore basato sulla posizione"""
         del level  # Non utilizzato ma mantenuto per compatibilità
         if total_cells <= 1:
-            return self._get_single_cell_color()
+            return "#0059E8"  # Blu fisso per celle singole
         
         # Calcola il rapporto di posizione (0.0 = sinistra, 1.0 = destra)
         position_ratio = position / (total_cells - 1) if total_cells > 1 else 0.5
         
-        # Ottiene i parametri HSV basati sulla tonalità selezionata
-        hue_start, hue_end, sat_start, sat_end, val_start, val_end = self._get_blue_tone_params()
+        # Usa una gradazione blu semplice
+        hue_start, hue_end = 217, 200  # Tonalità blu
+        sat_start, sat_end = 100, 30   # Saturazione
+        val_start, val_end = 91, 90    # Luminosità
         
         # Calcola i valori HSV per questa posizione
         hue = hue_start - (position_ratio * (hue_start - hue_end))
@@ -1118,30 +1233,6 @@ class ColorTreeDisplayApp:
         # Converte HSV a RGB
         return self._hsv_to_hex(hue, saturation, value)
     
-    def _get_single_cell_color(self) -> str:
-        """Restituisce il colore per celle singole basato sulla tonalità"""
-        tone_colors = {
-            "classic": "#0059E8",  # Blu specifico richiesto
-            "navy": "#0059E8",     # Blu specifico richiesto
-            "royal": "#0059E8",    # Blu specifico richiesto
-            "sky": "#0059E8"       # Blu specifico richiesto
-        }
-        return tone_colors.get(self.blue_tone, "#0059E8")
-    
-    def _get_blue_tone_params(self):
-        """Restituisce i parametri HSV per la tonalità blu selezionata"""
-        # #0059E8 convertito in HSV: H=217, S=100, V=91
-        base_hue = 217  # Tonalità del blu #0059E8
-        base_sat = 100  # Saturazione del blu #0059E8
-        base_val = 91   # Luminosità del blu #0059E8
-        
-        tone_params = {
-            "classic": (base_hue, 200, base_sat, 30, base_val, 90),  # #0059E8 -> Celestino
-            "navy": (base_hue, 200, base_sat, 25, base_val, 80),     # #0059E8 -> Azzurro chiaro
-            "royal": (base_hue, 200, base_sat, 35, base_val, 85),    # #0059E8 -> Azzurro reale
-            "sky": (base_hue, 200, base_sat, 20, base_val, 95)       # #0059E8 -> Azzurro cielo
-        }
-        return tone_params.get(self.blue_tone, tone_params["classic"])
     
     def _hsv_to_hex(self, h: float, s: float, v: float) -> str:
         """Converte HSV a colore hex"""
