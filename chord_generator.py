@@ -893,8 +893,10 @@ class ColorTreeDisplayApp:
         # Se la finestra creative è aperta, cambia l'accordo in tempo reale
         if self.creative_window and self.creative_window.is_window_open():
             self.creative_window.change_chord(sound_cell)
+            # Non riprodurre preview audio quando la finestra creative è aperta
+            return
         
-        # Riproduzione audio tramite pygame
+        # Riproduzione audio tramite pygame (solo quando finestra creative è chiusa)
         self.midi_generator.play_scale(sound_cell)
         
         # Output MIDI verso DAW se configurato
