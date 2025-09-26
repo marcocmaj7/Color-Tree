@@ -58,8 +58,7 @@ class CreativeChordWindow:
         self.setup_ui()
         self.update_controls()
         
-        # Evidenzia il pattern predefinito
-        self.highlight_selected_pattern(self.selected_pattern.get())
+        # L'evidenziazione viene gestita in initialize_highlighting()
         
         # Inizializza la visualizzazione della velocità e BPM
         self.update_speed_display()
@@ -135,6 +134,21 @@ class CreativeChordWindow:
         
         # Controlli pattern compatti
         self.create_pattern_controls_compact(right_column)
+        
+        # Inizializza l'evidenziazione dei controlli
+        self.initialize_highlighting()
+    
+    def initialize_highlighting(self):
+        """Inizializza l'evidenziazione dei controlli con i valori predefiniti"""
+        # Evidenzia il pattern iniziale
+        initial_pattern = self.selected_pattern.get()
+        if initial_pattern in self.pattern_buttons:
+            self.highlight_selected_pattern(initial_pattern)
+        
+        # Evidenzia la pausa iniziale
+        initial_pause = self.pause_duration_var.get()
+        if initial_pause in self.pattern_buttons:
+            self.highlight_selected_pause(initial_pause)
     
     def create_chord_info_compact(self, parent):
         """Crea informazioni accordo compatte nel titolo"""
@@ -461,7 +475,7 @@ class CreativeChordWindow:
         
         note_duration_label = tk.Label(note_duration_frame, text="⏱️ Note Duration", 
                                       font=('Segoe UI', 9, 'bold'), 
-                                      bg='#f8f9fa', fg='#2c3e50')
+                                      bg='#f8f9fa', fg='#9b59b6')
         note_duration_label.pack(anchor='w')
         
         note_duration_controls = tk.Frame(note_duration_frame, bg='#f8f9fa')
@@ -682,7 +696,7 @@ class CreativeChordWindow:
         # Se è una selezione di pause, gestiscila separatamente
         if pattern_value in ["none", "0.1s", "0.25s", "0.5s", "1.0s", "1.5s", "2.0s", "3.0s"]:
             self.pause_duration_var.set(pattern_value)
-            self.highlight_selected_pattern(pattern_value)
+            self.highlight_selected_pause(pattern_value)
             self.update_parameters_realtime()
         else:
             self.selected_pattern.set(pattern_value)
@@ -692,11 +706,26 @@ class CreativeChordWindow:
     
     def highlight_selected_pattern(self, selected_value):
         """Evidenzia il pattern selezionato con colore blu trasparente"""
-        # Reset tutti i pulsanti al colore normale
-        for _, btn in self.pattern_buttons.items():
-            btn.config(bg='#ecf0f1', fg='#2c3e50')
+        # Reset solo i pulsanti dei pattern (non le pause)
+        pause_values = ["none", "0.1s", "0.25s", "0.5s", "1.0s", "1.5s", "2.0s", "3.0s"]
+        for value, btn in self.pattern_buttons.items():
+            if value not in pause_values:  # Solo pattern, non pause
+                btn.config(bg='#ecf0f1', fg='#2c3e50')
         
         # Evidenzia il pattern selezionato
+        if selected_value in self.pattern_buttons:
+            selected_btn = self.pattern_buttons[selected_value]
+            selected_btn.config(bg='#3498db', fg='white')
+    
+    def highlight_selected_pause(self, selected_value):
+        """Evidenzia la pausa selezionata con colore blu trasparente"""
+        # Reset solo i pulsanti delle pause (non i pattern)
+        pause_values = ["none", "0.1s", "0.25s", "0.5s", "1.0s", "1.5s", "2.0s", "3.0s"]
+        for value, btn in self.pattern_buttons.items():
+            if value in pause_values:  # Solo pause, non pattern
+                btn.config(bg='#ecf0f1', fg='#2c3e50')
+        
+        # Evidenzia la pausa selezionata
         if selected_value in self.pattern_buttons:
             selected_btn = self.pattern_buttons[selected_value]
             selected_btn.config(bg='#3498db', fg='white')
@@ -913,6 +942,7 @@ class CreativeChordWindow:
         self.log_message(f"Note duration changed to: {duration}")
         self.update_parameters_realtime()
     
+    
     def update_parameters_realtime(self):
         """Aggiorna i parametri in tempo reale durante la riproduzione"""
         if self.is_playing:
@@ -1093,6 +1123,7 @@ class CreativeChordWindow:
     def update_pause_controls_state(self):
         """Aggiorna lo stato dei controlli pause in base al loop"""
         is_loop_active = self.loop_var.get()
+        selected_pause = self.pause_duration_var.get()
         
         # Pause options: none, 0.1s, 0.25s, 0.5s, 1.0s, 1.5s, 2.0s, 3.0s
         pause_options = ["none", "0.1s", "0.25s", "0.5s", "1.0s", "1.5s", "2.0s", "3.0s"]
@@ -1102,7 +1133,11 @@ class CreativeChordWindow:
                 btn = self.pattern_buttons[option]
                 if is_loop_active:
                     # Abilita i controlli pause quando il loop è attivo
-                    btn.config(state='normal', bg='#ecf0f1', fg='#2c3e50', cursor='hand2')
+                    if option == selected_pause:
+                        # Mantieni l'evidenziazione della pausa selezionata
+                        btn.config(state='normal', bg='#3498db', fg='white', cursor='hand2')
+                    else:
+                        btn.config(state='normal', bg='#ecf0f1', fg='#2c3e50', cursor='hand2')
                 else:
                     # Disabilita i controlli pause quando il loop non è attivo
                     btn.config(state='disabled', bg='#bdc3c7', fg='#7f8c8d', cursor='arrow')
