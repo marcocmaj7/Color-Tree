@@ -33,6 +33,7 @@ class CreativeChordWindow:
         self.playback_speed_var = tk.DoubleVar(value=1.0)
         self.loop_var = tk.BooleanVar(value=False)
         self.reverse_var = tk.BooleanVar(value=False)
+        self.pause_duration_var = tk.StringVar(value="none")
         
         # Stato dei controlli
         self.is_playing = False
@@ -572,6 +573,16 @@ class CreativeChordWindow:
                 ("Random Rhythm", "random_rhythm", "Ritmo imprevedibile"),
                 ("Random Volume", "random_volume", "Volumi drammatici"),
                 ("Changing", "random_changing", "Note che cambiano continuamente")
+            ]),
+            ("Pause", [
+                ("None", "none", "Nessuna pausa tra i loop (0.0s)"),
+                ("0.1s", "0.1s", "Pausa 0.1 secondi"),
+                ("0.25s", "0.25s", "Pausa 0.25 secondi"),
+                ("0.5s", "0.5s", "Pausa 0.5 secondi"),
+                ("1.0s", "1.0s", "Pausa 1.0 secondi"),
+                ("1.5s", "1.5s", "Pausa 1.5 secondi"),
+                ("2.0s", "2.0s", "Pausa 2.0 secondi"),
+                ("3.0s", "3.0s", "Pausa 3.0 secondi")
             ])
         ]
         
@@ -581,28 +592,66 @@ class CreativeChordWindow:
             cat_label = tk.Label(pattern_frame, text=f"📁 {cat_name}", 
                                font=('Segoe UI', 9, 'bold'), 
                                bg='#f8f9fa', fg='#34495e')
-            cat_label.grid(row=cat_idx, column=0, sticky='w', pady=(5, 2), padx=(0, 10))
+            cat_label.grid(row=cat_idx*2, column=0, sticky='w', pady=(5, 2), padx=(0, 10))
             
-            # Pattern buttons for this category
-            for pat_idx, (name, value, desc) in enumerate(patterns):
-                btn = tk.Button(pattern_frame, text=name, 
-                              font=('Segoe UI', 8),
-                              bg='#ecf0f1', fg='#2c3e50',
-                              relief='flat', bd=1,
-                              command=lambda v=value: self.select_pattern(v),
-                              cursor='hand2',
-                              activebackground='#3498db',
-                              activeforeground='white')
-                btn.grid(row=cat_idx, column=pat_idx+1, padx=2, pady=2, sticky='ew')
+            # Special handling for Pause category (2 rows)
+            if cat_name == "Pause":
+                # First row of pause buttons (4 buttons)
+                for pat_idx, (name, value, desc) in enumerate(patterns[:4]):
+                    btn = tk.Button(pattern_frame, text=name, 
+                                  font=('Segoe UI', 8),
+                                  bg='#ecf0f1', fg='#2c3e50',
+                                  relief='flat', bd=1,
+                                  command=lambda v=value: self.select_pattern(v),
+                                  cursor='hand2',
+                                  activebackground='#3498db',
+                                  activeforeground='white')
+                    btn.grid(row=cat_idx*2, column=pat_idx+1, padx=2, pady=2, sticky='ew')
+                    
+                    # Salva il riferimento al pulsante per l'evidenziazione
+                    self.pattern_buttons[value] = btn
+                    
+                    # Tooltip for description
+                    self.create_tooltip(btn, desc)
                 
-                # Salva il riferimento al pulsante per l'evidenziazione
-                self.pattern_buttons[value] = btn
-                
-                # Tooltip for description
-                self.create_tooltip(btn, desc)
+                # Second row of pause buttons (4 buttons)
+                for pat_idx, (name, value, desc) in enumerate(patterns[4:]):
+                    btn = tk.Button(pattern_frame, text=name, 
+                                  font=('Segoe UI', 8),
+                                  bg='#ecf0f1', fg='#2c3e50',
+                                  relief='flat', bd=1,
+                                  command=lambda v=value: self.select_pattern(v),
+                                  cursor='hand2',
+                                  activebackground='#3498db',
+                                  activeforeground='white')
+                    btn.grid(row=cat_idx*2+1, column=pat_idx+1, padx=2, pady=2, sticky='ew')
+                    
+                    # Salva il riferimento al pulsante per l'evidenziazione
+                    self.pattern_buttons[value] = btn
+                    
+                    # Tooltip for description
+                    self.create_tooltip(btn, desc)
+            else:
+                # Pattern buttons for other categories (single row)
+                for pat_idx, (name, value, desc) in enumerate(patterns):
+                    btn = tk.Button(pattern_frame, text=name, 
+                                  font=('Segoe UI', 8),
+                                  bg='#ecf0f1', fg='#2c3e50',
+                                  relief='flat', bd=1,
+                                  command=lambda v=value: self.select_pattern(v),
+                                  cursor='hand2',
+                                  activebackground='#3498db',
+                                  activeforeground='white')
+                    btn.grid(row=cat_idx*2, column=pat_idx+1, padx=2, pady=2, sticky='ew')
+                    
+                    # Salva il riferimento al pulsante per l'evidenziazione
+                    self.pattern_buttons[value] = btn
+                    
+                    # Tooltip for description
+                    self.create_tooltip(btn, desc)
         
         # Configure grid weights
-        for i in range(1, 7):  # 6 pattern columns (aggiunta categoria Random)
+        for i in range(1, 5):  # 4 pattern columns per riga (massimo 4 pulsanti per riga)
             pattern_frame.grid_columnconfigure(i, weight=1)
     
     def create_tooltip(self, widget, text):
@@ -629,15 +678,21 @@ class CreativeChordWindow:
     
     def select_pattern(self, pattern_value):
         """Seleziona un pattern"""
-        self.selected_pattern.set(pattern_value)
-        self.highlight_selected_pattern(pattern_value)
-        self.on_pattern_change()
-        self.update_parameters_realtime()
+        # Se è una selezione di pause, gestiscila separatamente
+        if pattern_value in ["none", "0.1s", "0.25s", "0.5s", "1.0s", "1.5s", "2.0s", "3.0s"]:
+            self.pause_duration_var.set(pattern_value)
+            self.highlight_selected_pattern(pattern_value)
+            self.update_parameters_realtime()
+        else:
+            self.selected_pattern.set(pattern_value)
+            self.highlight_selected_pattern(pattern_value)
+            self.on_pattern_change()
+            self.update_parameters_realtime()
     
     def highlight_selected_pattern(self, selected_value):
         """Evidenzia il pattern selezionato con colore blu trasparente"""
         # Reset tutti i pulsanti al colore normale
-        for value, btn in self.pattern_buttons.items():
+        for _, btn in self.pattern_buttons.items():
             btn.config(bg='#ecf0f1', fg='#2c3e50')
         
         # Evidenzia il pattern selezionato
@@ -670,6 +725,7 @@ class CreativeChordWindow:
             self.loop_btn.config(bg='#3498db', fg='white')
         else:
             self.loop_btn.config(bg='#95a5a6', fg='white')
+        self.update_pause_controls_state()
         self.update_parameters_realtime()
     
     def toggle_reverse(self):
@@ -729,6 +785,7 @@ class CreativeChordWindow:
     
     def on_bpm_double_click(self, event):
         """Gestisce il doppio click sul label BPM per inserimento manuale"""
+        del event  # Ignora il parametro event non utilizzato
         # Crea una finestra di dialogo per inserire il BPM
         dialog = tk.Toplevel(self.window)
         dialog.title("Inserisci BPM")
@@ -850,11 +907,10 @@ class CreativeChordWindow:
     
     def on_note_duration_change(self, event=None):
         """Gestisce il cambio di durata nota"""
+        del event  # Ignora il parametro event non utilizzato
         duration = self.note_duration_var.get()
         self.log_message(f"Note duration changed to: {duration}")
         self.update_parameters_realtime()
-        # Suppress unused argument warning
-        _ = event
     
     def update_parameters_realtime(self):
         """Aggiorna i parametri in tempo reale durante la riproduzione"""
@@ -873,7 +929,8 @@ class CreativeChordWindow:
                     reverse=self.reverse_var.get(),
                     duration_octaves=self.duration_octaves_var.get(),
                     playback_speed=self.playback_speed_var.get(),
-                    bpm=self.bpm_var.get()
+                    bpm=self.bpm_var.get(),
+                    pause_duration=self.get_pause_duration_seconds()
                 )
                 
                 self.log_message("Parameters updated in real-time")
@@ -938,6 +995,19 @@ class CreativeChordWindow:
         
         return base_duration * bpm_factor
     
+    def get_pause_duration_seconds(self):
+        """Converte la durata pausa in secondi"""
+        pause_duration_map = {
+            "none": 0.0,
+            "0.1s": 0.1,
+            "0.25s": 0.25,
+            "0.5s": 0.5,
+            "1.0s": 1.0,
+            "1.5s": 1.5,
+            "2.0s": 2.0,
+            "3.0s": 3.0
+        }
+        return pause_duration_map.get(self.pause_duration_var.get(), 0.0)
     
     def on_pattern_change(self):
         """Gestisce il cambio di pattern"""
@@ -978,6 +1048,7 @@ class CreativeChordWindow:
                 self.duration_octaves_var.get(),
                 self.playback_speed_var.get(),
                 self.bpm_var.get(),
+                self.get_pause_duration_seconds(),
                 self.on_playback_finished
             )
             
@@ -1012,6 +1083,26 @@ class CreativeChordWindow:
             self.play_btn.config(state='normal', text="▶ Play", 
                                bg='#27ae60', cursor='hand2')
             self.stop_btn.config(state='disabled', bg='#bdc3c7', cursor='arrow')
+        
+        # Aggiorna lo stato dei controlli pause
+        self.update_pause_controls_state()
+    
+    def update_pause_controls_state(self):
+        """Aggiorna lo stato dei controlli pause in base al loop"""
+        is_loop_active = self.loop_var.get()
+        
+        # Pause options: none, 0.1s, 0.25s, 0.5s, 1.0s, 1.5s, 2.0s, 3.0s
+        pause_options = ["none", "0.1s", "0.25s", "0.5s", "1.0s", "1.5s", "2.0s", "3.0s"]
+        
+        for option in pause_options:
+            if option in self.pattern_buttons:
+                btn = self.pattern_buttons[option]
+                if is_loop_active:
+                    # Abilita i controlli pause quando il loop è attivo
+                    btn.config(state='normal', bg='#ecf0f1', fg='#2c3e50', cursor='hand2')
+                else:
+                    # Disabilita i controlli pause quando il loop non è attivo
+                    btn.config(state='disabled', bg='#bdc3c7', fg='#7f8c8d', cursor='arrow')
     
     def log_message(self, message: str):
         """Aggiunge un messaggio all'area di stato (ora solo console)"""

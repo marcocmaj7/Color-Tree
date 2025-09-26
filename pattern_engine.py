@@ -82,12 +82,13 @@ class PatternEngine:
         self.current_duration_octaves = 1
         self.current_playback_speed = 1.0
         self.current_bpm = 120
+        self.current_pause_duration = 0.0
         self.param_lock = threading.Lock()
     
     def update_parameters(self, sound_cell: SoundCell = None, pattern_type: PatternType = None,
                          octave: int = None, base_duration: float = None,
                          loop: bool = None, reverse: bool = None, duration_octaves: int = None,
-                         playback_speed: float = None, bpm: int = None):
+                         playback_speed: float = None, bpm: int = None, pause_duration: float = None):
         """Aggiorna i parametri in tempo reale durante la riproduzione"""
         with self.param_lock:
             if sound_cell is not None:
@@ -108,11 +109,13 @@ class PatternEngine:
                 self.current_playback_speed = playback_speed
             if bpm is not None:
                 self.current_bpm = bpm
+            if pause_duration is not None:
+                self.current_pause_duration = pause_duration
     
     def update_parameters_safe(self, sound_cell: SoundCell = None, pattern_type: PatternType = None,
                               octave: int = None, base_duration: float = None,
                               loop: bool = None, reverse: bool = None, duration_octaves: int = None,
-                              playback_speed: float = None, bpm: int = None):
+                              playback_speed: float = None, bpm: int = None, pause_duration: float = None):
         """Aggiorna i parametri in modo sicuro, fermando la riproduzione se necessario"""
         # Se stiamo cambiando parametri critici, ferma la riproduzione corrente
         critical_changes = (sound_cell is not None or pattern_type is not None or 
@@ -124,7 +127,7 @@ class PatternEngine:
             time.sleep(0.05)
         
         self.update_parameters(sound_cell, pattern_type, octave, base_duration, 
-                              loop, reverse, duration_octaves, playback_speed, bpm)
+                              loop, reverse, duration_octaves, playback_speed, bpm, pause_duration)
     
     def get_current_parameters(self):
         """Ottiene i parametri correnti in modo thread-safe"""
@@ -138,7 +141,8 @@ class PatternEngine:
                 'reverse': self.current_reverse,
                 'duration_octaves': self.current_duration_octaves,
                 'playback_speed': self.current_playback_speed,
-                'bpm': self.current_bpm
+                'bpm': self.current_bpm,
+                'pause_duration': self.current_pause_duration
             }
         
     def generate_pattern_notes(self, sound_cell: SoundCell, pattern_type: PatternType, 
@@ -730,13 +734,13 @@ class PatternEngine:
                     octave: int = 4, base_duration: float = 0.3, 
                     loop: bool = False, reverse: bool = False, 
                     duration_octaves: int = 1, playback_speed: float = 1.0, 
-                    bpm: int = 120, callback: Optional[Callable] = None):
+                    bpm: int = 120, pause_duration: float = 0.0, callback: Optional[Callable] = None):
         """Riproduce un pattern con le note specificate"""
         if self.is_playing:
             self.stop_pattern()
         
         # Inizializza i parametri correnti
-        self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm)
+        self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm, pause_duration)
         
         self.is_playing = True
         self.is_looping = loop
@@ -756,6 +760,7 @@ class PatternEngine:
                     current_reverse = params['reverse']
                     current_duration_octaves = params['duration_octaves']
                     current_playback_speed = params['playback_speed']
+                    current_pause_duration = params['pause_duration']
                     
                     if not current_sound_cell or not current_pattern_type:
                         break
@@ -798,7 +803,14 @@ class PatternEngine:
                     # Incrementa il contatore delle iterazioni per debug
                     iteration_count += 1
                     
-                    # Nessuna pausa tra le ripetizioni del pattern per loop continuo
+                    # Aggiunge pausa tra le ripetizioni del pattern se specificata
+                    if current_pause_duration > 0:
+                        # Controlla se dobbiamo fermarci durante la pausa
+                        pause_chunks = int(current_pause_duration / 0.01) + 1
+                        for _ in range(pause_chunks):
+                            if self.stop_requested:
+                                break
+                            time.sleep(0.01)
                 
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"Errore nella riproduzione del pattern: {e}")
