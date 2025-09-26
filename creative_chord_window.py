@@ -280,7 +280,7 @@ class CreativeChordWindow:
     
     def create_playback_controls(self, parent):
         """Crea i controlli di riproduzione con design moderno"""
-        playback_frame = ttk.LabelFrame(parent, text="🎵 Playback Controls", 
+        playback_frame = ttk.LabelFrame(parent, text="Playback Controls", 
                                        style='Modern.TLabelframe', padding="10")
         playback_frame.pack(fill='x', pady=(0, 15))
         
@@ -341,7 +341,7 @@ class CreativeChordWindow:
         speed_frame.pack(side='left', padx=(0, 0))
         
         # Speed label
-        speed_label = tk.Label(speed_frame, text="⚡", 
+        speed_label = tk.Label(speed_frame, text="Speed", 
                               font=('Segoe UI', 8, 'bold'), 
                               bg='#f8f9fa', fg='#2c3e50')
         speed_label.pack(side='left', padx=(0, 2))
@@ -379,7 +379,7 @@ class CreativeChordWindow:
     
     def create_parameter_controls(self, parent):
         """Crea i controlli per i parametri compatti"""
-        param_frame = ttk.LabelFrame(parent, text="⚙️ Parameters", 
+        param_frame = ttk.LabelFrame(parent, text="Parameters", 
                                     style='Modern.TLabelframe', padding="10")
         param_frame.pack(fill='x', pady=(0, 15))
         
@@ -391,10 +391,10 @@ class CreativeChordWindow:
         start_octave_frame = tk.Frame(params_frame, bg='#f8f9fa')
         start_octave_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        start_octave_label = tk.Label(start_octave_frame, text="🎼 Start Octave", 
+        start_octave_label = tk.Label(start_octave_frame, text="Start Octave", 
                                      font=('Segoe UI', 9, 'bold'), 
                                bg='#f8f9fa', fg='#2c3e50')
-        start_octave_label.pack(anchor='w')
+        start_octave_label.pack(anchor='center')
         
         start_octave_controls = tk.Frame(start_octave_frame, bg='#f8f9fa')
         start_octave_controls.pack(fill='x', pady=(2, 0))
@@ -432,10 +432,10 @@ class CreativeChordWindow:
         duration_octaves_frame = tk.Frame(params_frame, bg='#f8f9fa')
         duration_octaves_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        duration_octaves_label = tk.Label(duration_octaves_frame, text="🎵 Duration Octaves", 
+        duration_octaves_label = tk.Label(duration_octaves_frame, text="Duration Octaves", 
                                          font=('Segoe UI', 9, 'bold'), 
                                 bg='#f8f9fa', fg='#2c3e50')
-        duration_octaves_label.pack(anchor='w')
+        duration_octaves_label.pack(anchor='w', padx=(0, 0))
         
         duration_octaves_controls = tk.Frame(duration_octaves_frame, bg='#f8f9fa')
         duration_octaves_controls.pack(fill='x', pady=(2, 0))
@@ -473,10 +473,10 @@ class CreativeChordWindow:
         note_duration_frame = tk.Frame(params_frame, bg='#f8f9fa')
         note_duration_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        note_duration_label = tk.Label(note_duration_frame, text="⏱️ Note Duration", 
+        note_duration_label = tk.Label(note_duration_frame, text="Note Duration", 
                                       font=('Segoe UI', 9, 'bold'), 
                                       bg='#f8f9fa', fg='#9b59b6')
-        note_duration_label.pack(anchor='w')
+        note_duration_label.pack(anchor='center')
         
         note_duration_controls = tk.Frame(note_duration_frame, bg='#f8f9fa')
         note_duration_controls.pack(fill='x', pady=(2, 0))
@@ -496,10 +496,10 @@ class CreativeChordWindow:
         bpm_frame = tk.Frame(params_frame, bg='#f8f9fa')
         bpm_frame.pack(side='left', fill='x', expand=True)
         
-        bpm_label = tk.Label(bpm_frame, text="🎵 BPM", 
+        bpm_label = tk.Label(bpm_frame, text="BPM", 
                             font=('Segoe UI', 9, 'bold'), 
                             bg='#f8f9fa', fg='#2c3e50')
-        bpm_label.pack(anchor='w')
+        bpm_label.pack(anchor='center')
         
         bpm_controls = tk.Frame(bpm_frame, bg='#f8f9fa')
         bpm_controls.pack(fill='x', pady=(2, 0))
