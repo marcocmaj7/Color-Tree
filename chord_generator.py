@@ -521,13 +521,16 @@ class MIDIScaleGenerator:
 
 
 class MIDIOutput:
-    """Gestisce l'output MIDI verso dispositivi esterni come DAW"""
+    """Gestisce l'output MIDI verso dispositivi esterni come DAW - SENZA THREADING"""
     
     def __init__(self):
         self.initialized = False
         self.output_port = None
         self.available_ports = []
         self.selected_port = None
+        
+        # Tracciamento note attive (solo per debug, non per controllo)
+        self.active_notes = set()
         
         if MIDI_AVAILABLE:
             try:
@@ -559,6 +562,9 @@ class MIDIOutput:
             return False
         
         try:
+            # Ferma tutte le note prima di cambiare porta
+            self.stop_all_notes()
+            
             if self.output_port:
                 self.output_port.close()
             
@@ -582,6 +588,7 @@ class MIDIOutput:
         try:
             msg = mido.Message('note_on', channel=channel, note=note, velocity=velocity)
             self.output_port.send(msg)
+            self.active_notes.add((note, channel))
             return True
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio Note On: {e}")
@@ -595,31 +602,113 @@ class MIDIOutput:
         try:
             msg = mido.Message('note_off', channel=channel, note=note, velocity=0)
             self.output_port.send(msg)
+            self.active_notes.discard((note, channel))
             return True
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio Note Off: {e}")
             return False
     
-    def send_chord(self, midi_notes, duration=0.5, channel=0):
-        """Invia un accordo MIDI"""
+    def stop_all_notes(self):
+        """Ferma TUTTE le note su TUTTI i canali - metodo robusto"""
+        if not self.initialized or not self.output_port:
+            return
+        
+        try:
+            # Metodo 1: Ferma tutte le note attive che stiamo tracciando
+            for note, channel in list(self.active_notes):
+                try:
+                    msg = mido.Message('note_off', channel=channel, note=note, velocity=0)
+                    self.output_port.send(msg)
+                except (OSError, RuntimeError, AttributeError):
+                    pass
+            
+            # Metodo 2: All Notes Off su tutti i canali (più robusto)
+            for channel in range(16):  # Canali MIDI 0-15
+                try:
+                    # All Notes Off (CC 123)
+                    msg = mido.Message('control_change', channel=channel, control=123, value=0)
+                    self.output_port.send(msg)
+                except (OSError, RuntimeError, AttributeError):
+                    pass
+            
+            # Pulisce il tracking
+            self.active_notes.clear()
+            
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nel fermare le note: {e}")
+    
+    def send_chord(self, midi_notes, duration=0.5, channel=0, velocity=64):
+        """Invia un accordo MIDI - VERSIONE COMPLETAMENTE SINCRONA"""
         if not self.initialized or not self.output_port:
             return False
         
         try:
-            # Invia tutte le note dell'accordo
-            for note in midi_notes:
-                self.send_note_on(note, channel=channel)
+            # STEP 1: Ferma TUTTE le note precedenti immediatamente
+            self.stop_all_notes()
             
-            # Programma lo spegnimento delle note dopo la durata specificata
-            def stop_notes():
+            # STEP 2: Invia le nuove note dell'accordo
+            for note in midi_notes:
+                self.send_note_on(note, velocity=velocity, channel=channel)
+            
+            # STEP 3: Se duration > 0, aspetta e poi ferma le note
+            if duration > 0:
                 time.sleep(duration)
+                # Ferma solo le note di questo accordo
                 for note in midi_notes:
                     self.send_note_off(note, channel=channel)
             
-            # Esegue in un thread separato per non bloccare l'UI
-            thread = threading.Thread(target=stop_notes)
-            thread.daemon = True
-            thread.start()
+            return True
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'invio dell'accordo MIDI: {e}")
+            return False
+    
+    def send_chord_immediate(self, midi_notes, channel=0, velocity=64):
+        """Invia un accordo MIDI e lo ferma immediatamente - per test"""
+        if not self.initialized or not self.output_port:
+            return False
+        
+        try:
+            # Ferma tutto
+            self.stop_all_notes()
+            
+            # Invia le note
+            for note in midi_notes:
+                self.send_note_on(note, velocity=velocity, channel=channel)
+            
+            # Aspetta un momento
+            time.sleep(0.1)
+            
+            # Ferma le note
+            for note in midi_notes:
+                self.send_note_off(note, channel=channel)
+            
+            return True
+        except (OSError, RuntimeError, AttributeError) as e:
+            print(f"Errore nell'invio dell'accordo MIDI: {e}")
+            return False
+    
+    def send_chord_non_blocking(self, midi_notes, duration=0.5, channel=0, velocity=64):
+        """Invia un accordo MIDI senza bloccare l'UI - usa solo per invio rapido"""
+        if not self.initialized or not self.output_port:
+            return False
+        
+        try:
+            # Ferma tutto immediatamente
+            self.stop_all_notes()
+            
+            # Invia le note
+            for note in midi_notes:
+                self.send_note_on(note, velocity=velocity, channel=channel)
+            
+            # Se duration è molto breve, ferma subito
+            if duration <= 0.1:
+                time.sleep(duration)
+                for note in midi_notes:
+                    self.send_note_off(note, channel=channel)
+            else:
+                # Per durate più lunghe, lascia che l'utente gestisca manualmente
+                # o usa stop_all_notes() quando necessario
+                pass
             
             return True
         except (OSError, RuntimeError, AttributeError) as e:
@@ -628,12 +717,15 @@ class MIDIOutput:
     
     def close(self):
         """Chiude la connessione MIDI"""
-        if self.output_port:
-            try:
+        try:
+            # Ferma tutte le note prima di chiudere
+            self.stop_all_notes()
+            
+            if self.output_port:
                 self.output_port.close()
-            except (OSError, RuntimeError, AttributeError):
-                pass
-            self.output_port = None
+                self.output_port = None
+        except (OSError, RuntimeError, AttributeError):
+            pass
 
 
 class ColorTreeDisplayApp:
@@ -1151,8 +1243,8 @@ class ColorTreeDisplayApp:
             try:
                 # Genera le note MIDI per l'accordo
                 midi_notes = self.midi_generator.generate_scale_notes(sound_cell)
-                # Invia l'accordo MIDI
-                self.midi_output.send_chord(midi_notes, duration=2.0)
+                # Invia l'accordo MIDI senza bloccare l'UI
+                self.midi_output.send_chord_non_blocking(midi_notes, duration=2.0, velocity=80)
             except (OSError, RuntimeError, AttributeError) as e:
                 print(f"Errore nell'invio MIDI: {e}")
         else:

@@ -893,27 +893,25 @@ class PatternEngine:
             print(f"Errore nella riproduzione della nota: {e}")
     
     def _play_single_note_midi(self, midi_note: int, duration: float, volume: float):
-        """Riproduce una singola nota via MIDI con timing corretto"""
+        """Riproduce una singola nota via MIDI - VERSIONE SINCRONA SENZA THREAD"""
         try:
+            # Controlla se dobbiamo fermarci prima di iniziare
+            if self.stop_requested:
+                return
+            
             # Invia Note On
             velocity = int(volume * 127)  # Converte volume (0-1) a velocity (0-127)
             # print(f"Sending MIDI note: {midi_note} (velocity: {velocity}, duration: {duration:.3f}s)")  # Debug commentato
             
+            self.midi_output.send_note_on(midi_note, velocity)
+            
+            # Aspetta per la durata specificata della nota (SINCRONO)
+            time.sleep(duration)
+            
+            # Invia Note Off solo se non è stato richiesto di fermare
             if not self.stop_requested:
-                self.midi_output.send_note_on(midi_note, velocity)
-            
-            # Programma Note Off dopo la durata specificata
-            def send_note_off():
-                # Aspetta per la durata specificata della nota
-                time.sleep(duration)
-                if not self.stop_requested:
-                    self.midi_output.send_note_off(midi_note)
-                    # print(f"Note Off: {midi_note}")  # Debug commentato
-            
-            # Esegue in un thread separato per non bloccare il pattern
-            thread = threading.Thread(target=send_note_off)
-            thread.daemon = True
-            thread.start()
+                self.midi_output.send_note_off(midi_note)
+                # print(f"Note Off: {midi_note}")  # Debug commentato
             
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio MIDI: {e}")
@@ -1008,7 +1006,11 @@ class PatternEngine:
         self.is_playing = False
         self.is_looping = False
         
-        # Aspetta che il thread finisca prima di fermare i suoni
+        # Ferma TUTTE le note MIDI immediatamente
+        if self.midi_output and self.midi_output.initialized and self.midi_output.output_port:
+            self.midi_output.stop_all_notes()
+        
+        # Aspetta che il thread finisca prima di fermare i suoni pygame
         if self.current_thread and self.current_thread.is_alive():
             self.current_thread.join(timeout=0.2)
         
