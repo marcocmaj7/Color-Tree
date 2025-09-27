@@ -90,6 +90,10 @@ class PatternEngine:
         self.current_delay_enabled = False
         self.current_delay_time = 0.25
         self.current_delay_feedback = 0.3
+        self.current_delay_mix = 0.5
+        self.current_delay_type = "Standard"
+        self.current_delay_velocity = 0.8
+        self.current_delay_repeats = 3
         self.current_octave_add = 0
         self.current_velocity_curve = "linear"
         self.current_velocity_intensity = 1.0
@@ -109,6 +113,7 @@ class PatternEngine:
                          playback_speed: float = None, bpm: int = None, pause_duration: float = None,
                          # MIDI Effects
                          delay_enabled: bool = None, delay_time: float = None, delay_feedback: float = None,
+                         delay_mix: float = None, delay_type: str = None, delay_velocity: float = None, delay_repeats: int = None,
                          octave_add: int = None, velocity_curve: str = None, velocity_intensity: float = None,
                          accent_enabled: bool = None, accent_strength: float = None, accent_pattern: str = None,
                          repeater_enabled: bool = None, repeat_count: int = None, repeat_timing: str = None,
@@ -143,6 +148,14 @@ class PatternEngine:
                 self.current_delay_time = delay_time
             if delay_feedback is not None:
                 self.current_delay_feedback = delay_feedback
+            if delay_mix is not None:
+                self.current_delay_mix = delay_mix
+            if delay_type is not None:
+                self.current_delay_type = delay_type
+            if delay_velocity is not None:
+                self.current_delay_velocity = delay_velocity
+            if delay_repeats is not None:
+                self.current_delay_repeats = delay_repeats
             if octave_add is not None:
                 self.current_octave_add = octave_add
             if velocity_curve is not None:
@@ -212,6 +225,10 @@ class PatternEngine:
                 'delay_enabled': self.current_delay_enabled,
                 'delay_time': self.current_delay_time,
                 'delay_feedback': self.current_delay_feedback,
+                'delay_mix': self.current_delay_mix,
+                'delay_type': self.current_delay_type,
+                'delay_velocity': self.current_delay_velocity,
+                'delay_repeats': self.current_delay_repeats,
                 'octave_add': self.current_octave_add,
                 'velocity_curve': self.current_velocity_curve,
                 'velocity_intensity': self.current_velocity_intensity,
@@ -851,6 +868,7 @@ class PatternEngine:
                     bpm: int = 120, pause_duration: float = 0.0, callback: Optional[Callable] = None,
                     # MIDI Effects
                     delay_enabled: bool = False, delay_time: float = 0.25, delay_feedback: float = 0.3,
+                    delay_mix: float = 0.5, delay_type: str = "quarter", delay_velocity: float = 0.7, delay_repeats: int = 3,
                     octave_add: int = 0, velocity_curve: str = "linear", velocity_intensity: float = 1.0,
                     accent_enabled: bool = False, accent_strength: float = 0.5, accent_pattern: str = "every_beat",
                     repeater_enabled: bool = False, repeat_count: int = 2, repeat_timing: str = "immediate",
@@ -861,9 +879,9 @@ class PatternEngine:
         
         # Inizializza i parametri correnti
         self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm, pause_duration,
-                              delay_enabled, delay_time, delay_feedback, octave_add, velocity_curve, velocity_intensity,
-                              accent_enabled, accent_strength, accent_pattern, repeater_enabled, repeat_count, repeat_timing,
-                              chord_gen_enabled, chord_variation, voicing)
+                              delay_enabled, delay_time, delay_feedback, delay_mix, delay_type, delay_velocity, delay_repeats,
+                              octave_add, velocity_curve, velocity_intensity, accent_enabled, accent_strength, accent_pattern, 
+                              repeater_enabled, repeat_count, repeat_timing, chord_gen_enabled, chord_variation, voicing)
         
         self.is_playing = True
         self.is_looping = loop
@@ -973,6 +991,10 @@ class PatternEngine:
             
             # Se MIDI è configurato, invia via MIDI invece di pygame
             if self.midi_output and self.midi_output.initialized and self.midi_output.output_port:
+                # Assicura che midi_note sia un intero
+                if not isinstance(midi_note, int):
+                    print(f"WARNING: midi_note in _play_single_note is not int: {type(midi_note)} = {midi_note}")
+                    midi_note = int(midi_note) if isinstance(midi_note, (int, float)) else 60
                 self._play_single_note_midi(midi_note, duration, volume, note_index, total_notes)
                 return
                 
@@ -1002,28 +1024,67 @@ class PatternEngine:
         return midi_note, velocity
     
     def _apply_delay_effect(self, midi_note: int, velocity: int, duration: float):
-        """Applica l'effetto delay (MIDI echo)"""
+        """Applica l'effetto delay (MIDI echo) con controlli avanzati"""
         params = self.get_current_parameters()
         
         if not params['delay_enabled']:
             return [(midi_note, velocity, duration)]
         
-        # delay_time = params['delay_time']  # Not used in current implementation
+        # Parametri del delay
         feedback = params['delay_feedback']
+        mix = params['delay_mix']
+        delay_type = params['delay_type']
+        delay_velocity = params['delay_velocity']
+        try:
+            max_repeats = int(params['delay_repeats'])  # Assicura che sia un intero
+        except (ValueError, TypeError):
+            max_repeats = 3  # Valore di default
         
         # Crea gli echi
-        echoes = [(midi_note, velocity, duration)]
+        echoes = []
+        
+        # Nota originale (dry signal)
+        if mix < 1.0:  # Se mix non è 100% wet
+            echoes.append((midi_note, velocity, duration))
+        
+        # Genera gli echi
         current_velocity = velocity
         current_duration = duration
         
-        # Genera fino a 3 echi
-        for _ in range(3):
-            current_velocity = int(current_velocity * feedback)
-            if current_velocity < 10:  # Soglia minima per evitare note troppo deboli
+        for i in range(max_repeats):
+            # Calcola la velocità dell'eco
+            current_velocity = int(velocity * delay_velocity * (feedback ** (i + 1)))
+            if current_velocity < 10:  # Soglia minima
                 break
             
-            echoes.append((midi_note, current_velocity, current_duration * 0.8))
-            current_duration *= 0.8
+            # Calcola la durata dell'eco
+            current_duration = duration * (0.8 ** (i + 1))
+            
+            # Applica il tipo di delay
+            if delay_type == "Ping-Pong":
+                # Alterna canali (simulato con ottave diverse)
+                channel_offset = 12 if i % 2 == 0 else -12
+                echo_note = max(0, min(127, midi_note + channel_offset))
+            elif delay_type == "Dotted":
+                # Delay puntato (1.5x tempo)
+                current_duration *= 1.5
+                echo_note = midi_note
+            elif delay_type == "Triplet":
+                # Delay in terzine (0.67x tempo)
+                current_duration *= 0.67
+                echo_note = midi_note
+            elif delay_type == "Reverse":
+                # Echi al contrario (ottava più bassa)
+                echo_note = max(0, min(127, midi_note - 12))
+            elif delay_type == "Stutter":
+                # Ripetizioni rapide con durata ridotta
+                current_duration *= 0.3
+                echo_note = midi_note
+            else:  # Standard
+                echo_note = midi_note
+            
+            # Aggiungi l'eco
+            echoes.append((echo_note, current_velocity, current_duration))
         
         return echoes
     
@@ -1034,7 +1095,10 @@ class PatternEngine:
         if not params['repeater_enabled']:
             return [(midi_note, velocity, duration)]
         
-        repeat_count = params['repeat_count']
+        try:
+            repeat_count = int(params['repeat_count'])  # Assicura che sia un intero
+        except (ValueError, TypeError):
+            repeat_count = 2  # Valore di default
         timing = params['repeat_timing']
         
         repeats = []
@@ -1121,7 +1185,18 @@ class PatternEngine:
             
             # Applica effetti MIDI
             velocity = int(volume * 127)  # Converte volume (0-1) a velocity (0-127)
+            
+            # Assicura che midi_note sia un intero
+            if not isinstance(midi_note, int):
+                print(f"WARNING: midi_note is not int: {type(midi_note)} = {midi_note}")
+                midi_note = int(midi_note) if isinstance(midi_note, (int, float)) else 60
+            
             midi_note, velocity = self._apply_midi_effects(midi_note, velocity, note_index, total_notes)
+            
+            # Assicura che velocity sia ancora un intero dopo gli effetti
+            if not isinstance(velocity, int):
+                print(f"WARNING: velocity after effects is not int: {type(velocity)} = {velocity}")
+                velocity = int(velocity) if isinstance(velocity, (int, float)) else 64
             
             # Applica effetti di delay e repeater
             delay_notes = self._apply_delay_effect(midi_note, velocity, duration)
@@ -1131,21 +1206,27 @@ class PatternEngine:
             all_notes = []
             
             # Se entrambi gli effetti sono disabilitati, riproduci solo la nota originale
-            if len(delay_notes) == 1 and len(repeater_notes) == 1 and delay_notes[0] == (midi_note, velocity, duration) and repeater_notes[0] == (midi_note, velocity, duration):
+            params = self.get_current_parameters()
+            delay_enabled = params['delay_enabled']
+            repeater_enabled = params['repeater_enabled']
+            
+            if not delay_enabled and not repeater_enabled:
+                # Nessun effetto attivo, riproduci solo la nota originale
                 all_notes = [(midi_note, velocity, duration)]
+            elif delay_enabled and not repeater_enabled:
+                # Solo delay attivo
+                all_notes = delay_notes
+            elif not delay_enabled and repeater_enabled:
+                # Solo repeater attivo
+                all_notes = repeater_notes
             else:
-                # Applica prima il delay, poi il repeater su ogni nota del delay
+                # Entrambi gli effetti attivi - applica repeater a ogni nota del delay
                 for delay_note, delay_velocity, delay_duration in delay_notes:
-                    if len(repeater_notes) == 1:
-                        # Solo delay, senza repeater
-                        all_notes.append((delay_note, delay_velocity, delay_duration))
-                    else:
-                        # Applica repeater a ogni nota del delay
-                        for _, repeat_velocity, repeat_duration in repeater_notes:
-                            # Usa la nota del delay ma con la velocity del repeater
-                            final_velocity = min(delay_velocity, repeat_velocity)
-                            final_duration = min(delay_duration, repeat_duration)
-                            all_notes.append((delay_note, final_velocity, final_duration))
+                    for _, repeat_velocity, repeat_duration in repeater_notes:
+                        # Usa la nota del delay ma con la velocity del repeater
+                        final_velocity = min(delay_velocity, repeat_velocity)
+                        final_duration = min(delay_duration, repeat_duration)
+                        all_notes.append((delay_note, final_velocity, final_duration))
             
             # Limita il numero massimo di note per evitare sovraccarico
             max_notes = 20
@@ -1156,6 +1237,23 @@ class PatternEngine:
             for note, vel, dur in all_notes:
                 if self.stop_requested:
                     break
+                
+                # Assicura che note e velocity siano interi validi
+                # Converte note a int
+                if isinstance(note, (int, float)):
+                    note = int(note)
+                else:
+                    print(f"WARNING: note is not int/float: {type(note)} = {note}")
+                    note = 60  # C4 di default
+                note = max(0, min(127, note))  # Clamp to valid MIDI range
+                
+                # Converte velocity a int
+                if isinstance(vel, (int, float)):
+                    vel = int(vel)
+                else:
+                    print(f"WARNING: vel is not int/float: {type(vel)} = {vel}")
+                    vel = 64
+                vel = max(1, min(127, vel))  # Clamp to valid MIDI range
                 
                 # Invia Note On
                 self.midi_output.send_note_on(note, vel)
