@@ -207,7 +207,23 @@ class PatternEngine:
                 'duration_octaves': self.current_duration_octaves,
                 'playback_speed': self.current_playback_speed,
                 'bpm': self.current_bpm,
-                'pause_duration': self.current_pause_duration
+                'pause_duration': self.current_pause_duration,
+                # MIDI Effects parameters
+                'delay_enabled': self.current_delay_enabled,
+                'delay_time': self.current_delay_time,
+                'delay_feedback': self.current_delay_feedback,
+                'octave_add': self.current_octave_add,
+                'velocity_curve': self.current_velocity_curve,
+                'velocity_intensity': self.current_velocity_intensity,
+                'accent_enabled': self.current_accent_enabled,
+                'accent_strength': self.current_accent_strength,
+                'accent_pattern': self.current_accent_pattern,
+                'repeater_enabled': self.current_repeater_enabled,
+                'repeat_count': self.current_repeat_count,
+                'repeat_timing': self.current_repeat_timing,
+                'chord_gen_enabled': self.current_chord_gen_enabled,
+                'chord_variation': self.current_chord_variation,
+                'voicing': self.current_voicing
             }
         
     def generate_pattern_notes(self, sound_cell: SoundCell, pattern_type: PatternType, 
@@ -1111,11 +1127,30 @@ class PatternEngine:
             delay_notes = self._apply_delay_effect(midi_note, velocity, duration)
             repeater_notes = self._apply_repeater_effect(midi_note, velocity, duration)
             
-            # Combina gli effetti (delay + repeater)
+            # Combina gli effetti in modo intelligente
             all_notes = []
-            for delay_note, _, delay_duration in delay_notes:
-                for _, repeat_velocity, repeat_duration in repeater_notes:
-                    all_notes.append((delay_note, repeat_velocity, min(delay_duration, repeat_duration)))
+            
+            # Se entrambi gli effetti sono disabilitati, riproduci solo la nota originale
+            if len(delay_notes) == 1 and len(repeater_notes) == 1 and delay_notes[0] == (midi_note, velocity, duration) and repeater_notes[0] == (midi_note, velocity, duration):
+                all_notes = [(midi_note, velocity, duration)]
+            else:
+                # Applica prima il delay, poi il repeater su ogni nota del delay
+                for delay_note, delay_velocity, delay_duration in delay_notes:
+                    if len(repeater_notes) == 1:
+                        # Solo delay, senza repeater
+                        all_notes.append((delay_note, delay_velocity, delay_duration))
+                    else:
+                        # Applica repeater a ogni nota del delay
+                        for _, repeat_velocity, repeat_duration in repeater_notes:
+                            # Usa la nota del delay ma con la velocity del repeater
+                            final_velocity = min(delay_velocity, repeat_velocity)
+                            final_duration = min(delay_duration, repeat_duration)
+                            all_notes.append((delay_note, final_velocity, final_duration))
+            
+            # Limita il numero massimo di note per evitare sovraccarico
+            max_notes = 20
+            if len(all_notes) > max_notes:
+                all_notes = all_notes[:max_notes]
             
             # Riproduce tutte le note generate dagli effetti
             for note, vel, dur in all_notes:

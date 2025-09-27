@@ -23,12 +23,7 @@ try:
 except ImportError:
     MIDI_AVAILABLE = False
 
-# Import per la finestra creativa
-try:
-    from creative_chord_window import CreativeChordWindow
-    CREATIVE_WINDOW_AVAILABLE = True
-except ImportError:
-    CREATIVE_WINDOW_AVAILABLE = False
+# Import per la finestra creativa - import dinamico per evitare import circolare
 
 
 class Note(Enum):
@@ -1254,8 +1249,10 @@ class ColorTreeDisplayApp:
     
     def open_creative_window(self):
         """Apre la finestra per la riproduzione creativa degli accordi"""
-        if not CREATIVE_WINDOW_AVAILABLE:
-            messagebox.showerror("Error", "Creative window module not available. Please check the installation.")
+        try:
+            from creative_chord_window import CreativeChordWindow
+        except ImportError as e:
+            messagebox.showerror("Error", f"Creative window module not available. Please check the installation.\nError: {e}")
             return
         
         if self.selected_sound_cell is None:
