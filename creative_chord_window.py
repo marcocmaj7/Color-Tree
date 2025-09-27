@@ -74,6 +74,10 @@ class CreativeChordWindow:
         self.bpm_label = None
         self.playback_speed_label = None
         self.octave_add_label = None
+
+        # Pulsanti degli effetti MIDI
+        self.delay_btn = None
+        self.delay_type_button = None # Aggiunto per il nuovo pulsante "Tipo"
         
         # Pulsanti degli effetti MIDI
         self.delay_btn = None
@@ -192,11 +196,13 @@ class CreativeChordWindow:
     def initialize_effect_buttons(self):
         """Inizializza i colori dei pulsanti degli effetti"""
         # Delay
-        if hasattr(self, 'delay_btn'):
+        if hasattr(self, 'delay_btn') and hasattr(self, 'delay_type_button'):
             if self.delay_enabled_var.get():
                 self.delay_btn.config(bg='#3498db', fg='white')
+                self.delay_type_button.config(bg='#3498db', fg='white')
             else:
                 self.delay_btn.config(bg='#95a5a6', fg='white')
+                self.delay_type_button.config(bg='#95a5a6', fg='white')
         
         # Octave
         if hasattr(self, 'octave_btn'):
@@ -676,6 +682,18 @@ class CreativeChordWindow:
                                  activebackground='#7f8c8d',
                                  activeforeground='white')
         self.delay_btn.pack(side='left')
+
+        # Pulsante "Tipo" più piccolo alla destra di Delay
+        self.delay_type_button = tk.Button(delay_header, text="Tipo",
+                                          font=('Segoe UI', 8),
+                                          bg='#3498db', fg='white',
+                                          command=self.open_delay_type_dropdown,
+                                          width=5, height=1,
+                                          relief='flat', bd=0,
+                                          cursor='hand2',
+                                          activebackground='#2980b9',
+                                          activeforeground='white')
+        self.delay_type_button.pack(side='left', padx=(5,0))
         
         # Controlli delay con slider
         delay_controls = tk.Frame(delay_frame, bg='#e8f4fd')
@@ -732,9 +750,13 @@ class CreativeChordWindow:
         self.type_combo = ttk.Combobox(type_frame, textvariable=self.delay_type_var,
                                       values=["Standard", "Ping-Pong", "Dotted", 
                                              "Triplet", "Reverse", "Stutter"],
-                                      state="readonly", font=('Segoe UI', 8))
-        self.type_combo.pack(side='right', fill='x', expand=True)
+                                      state="readonly", font=('Segoe UI', 8),
+                                      width=12)
+        self.type_combo.pack(side='right', fill='x', expand=True, padx=(5,0))
         self.type_combo.bind('<<ComboboxSelected>>', self.on_type_change)
+        
+        # Aggiungi un binding per il click diretto sul Combobox
+        self.type_combo.bind('<Button-1>', self.on_combobox_click)
     
     def create_octave_controls_compact(self, parent, row, col):
         """Crea i controlli per l'aggiunta di ottave compatti"""
@@ -1611,9 +1633,64 @@ class CreativeChordWindow:
         self.delay_enabled_var.set(not self.delay_enabled_var.get())
         if self.delay_enabled_var.get():
             self.delay_btn.config(bg='#3498db', fg='white')
+            self.delay_type_button.config(bg='#3498db', fg='white')
         else:
             self.delay_btn.config(bg='#95a5a6', fg='white')
+            self.delay_type_button.config(bg='#95a5a6', fg='white')
         self.on_effect_change()
+    
+    def open_delay_type_dropdown(self):
+        """Apre il dropdown del tipo di delay usando un menu popup personalizzato"""
+        try:
+            # Crea un menu popup personalizzato
+            delay_types = ["Standard", "Ping-Pong", "Dotted", "Triplet", "Reverse", "Stutter"]
+            current_type = self.delay_type_var.get()
+            
+            # Ottieni la posizione del pulsante "Tipo"
+            button_x = self.delay_type_button.winfo_rootx()
+            button_y = self.delay_type_button.winfo_rooty() + self.delay_type_button.winfo_height()
+            
+            # Crea il menu popup
+            popup_menu = tk.Menu(self.window, tearoff=0, font=('Segoe UI', 9))
+            
+            # Aggiungi le opzioni al menu con evidenziazione per quella selezionata
+            for delay_type in delay_types:
+                if delay_type == current_type:
+                    # Evidenzia l'opzione attualmente selezionata
+                    popup_menu.add_command(
+                        label=f"✓ {delay_type}",
+                        command=lambda dt=delay_type: self.select_delay_type(dt),
+                        background='#e3f2fd',
+                        foreground='#1976d2',
+                        font=('Segoe UI', 9, 'bold')
+                    )
+                else:
+                    popup_menu.add_command(
+                        label=delay_type,
+                        command=lambda dt=delay_type: self.select_delay_type(dt)
+                    )
+            
+            # Mostra il menu
+            popup_menu.tk_popup(button_x, button_y)
+            
+        except Exception as e:
+            print(f"Errore nell'apertura del menu: {e}")
+    
+    def select_delay_type(self, delay_type):
+        """Seleziona un tipo di delay dal menu popup"""
+        try:
+            self.delay_type_var.set(delay_type)
+            self.on_type_change()
+        except Exception as e:
+            print(f"Errore nella selezione del tipo: {e}")
+    
+    def on_combobox_click(self, event):
+        """Gestisce il click diretto sul Combobox"""
+        try:
+            # Forza l'apertura del dropdown
+            self.type_combo.event_generate('<Down>')
+        except Exception as e:
+            print(f"Errore nell'apertura del Combobox: {e}")
     
     def toggle_octave(self):
         """Toggle dell'ottava"""
