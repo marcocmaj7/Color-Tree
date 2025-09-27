@@ -627,45 +627,33 @@ class CreativeChordWindow:
                                      style='Modern.TLabelframe', padding="8")
         effects_frame.pack(fill='x', pady=(0, 15))
         
-        # Layout a griglia per massimizzare lo spazio
+        # Layout a griglia uniforme 3x2
         effects_grid = tk.Frame(effects_frame, bg='#f8f9fa')
-        effects_grid.pack(fill='x')
+        effects_grid.pack(fill='both', expand=True)
+        
+        # Configurazione griglia uniforme
+        for i in range(3):  # 3 righe
+            effects_grid.grid_rowconfigure(i, weight=1, uniform="row")
+        for j in range(2):  # 2 colonne
+            effects_grid.grid_columnconfigure(j, weight=1, uniform="col")
         
         # Riga 1: Delay e Octave
-        row1 = tk.Frame(effects_grid, bg='#f8f9fa')
-        row1.pack(fill='x', pady=(0, 5))
-        
-        # Delay (MIDI Echo) - compatto
-        self.create_delay_controls_compact(row1)
-        
-        # Octave Addition - compatto
-        self.create_octave_controls_compact(row1)
+        self.create_delay_controls_compact(effects_grid, 0, 0)
+        self.create_octave_controls_compact(effects_grid, 0, 1)
         
         # Riga 2: Velocity e Accent
-        row2 = tk.Frame(effects_grid, bg='#f8f9fa')
-        row2.pack(fill='x', pady=(0, 5))
-        
-        # Velocity Curve - compatto
-        self.create_velocity_controls_compact(row2)
-        
-        # Accent Patterns - compatto
-        self.create_accent_controls_compact(row2)
+        self.create_velocity_controls_compact(effects_grid, 1, 0)
+        self.create_accent_controls_compact(effects_grid, 1, 1)
         
         # Riga 3: Repeater e Chord Generator
-        row3 = tk.Frame(effects_grid, bg='#f8f9fa')
-        row3.pack(fill='x')
-        
-        # Note Repeater - compatto
-        self.create_repeater_controls_compact(row3)
-        
-        # Chord Generator - compatto
-        self.create_chord_gen_controls_compact(row3)
+        self.create_repeater_controls_compact(effects_grid, 2, 0)
+        self.create_chord_gen_controls_compact(effects_grid, 2, 1)
     
-    def create_delay_controls_compact(self, parent):
+    def create_delay_controls_compact(self, parent, row, col):
         """Crea i controlli per l'effetto Delay (MIDI Echo) compatti"""
         # Sottoriquadro colorato per Delay
         delay_frame = tk.Frame(parent, bg='#e8f4fd', relief='solid', bd=1)
-        delay_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        delay_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
         # Header con pulsante di attivazione
         delay_header = tk.Frame(delay_frame, bg='#e8f4fd')
@@ -776,11 +764,11 @@ class CreativeChordWindow:
             feedback_value.config(text=f"{self.delay_feedback_var.get():.1f}")
         self.delay_feedback_var.trace('w', update_feedback)
     
-    def create_octave_controls_compact(self, parent):
+    def create_octave_controls_compact(self, parent, row, col):
         """Crea i controlli per l'aggiunta di ottave compatti"""
         # Sottoriquadro colorato per Octave
         octave_frame = tk.Frame(parent, bg='#f0f8ff', relief='solid', bd=1)
-        octave_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        octave_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
         # Header con pulsante di attivazione
         octave_header = tk.Frame(octave_frame, bg='#f0f8ff')
@@ -837,11 +825,11 @@ class CreativeChordWindow:
             self.octave_add_label.config(text=f"{val:+d}")
         self.octave_add_var.trace('w', update_octave_add_value)
     
-    def create_velocity_controls_compact(self, parent):
+    def create_velocity_controls_compact(self, parent, row, col):
         """Crea i controlli per la curva di velocità compatti"""
         # Sottoriquadro colorato per Velocity
         velocity_frame = tk.Frame(parent, bg='#f0fff0', relief='solid', bd=1)
-        velocity_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        velocity_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
         # Header con pulsante di attivazione
         velocity_header = tk.Frame(velocity_frame, bg='#f0fff0')
@@ -923,11 +911,11 @@ class CreativeChordWindow:
             intensity_value.config(text=f"{self.velocity_intensity_var.get():.1f}")
         self.velocity_intensity_var.trace('w', update_intensity)
     
-    def create_accent_controls_compact(self, parent):
+    def create_accent_controls_compact(self, parent, row, col):
         """Crea i controlli per i pattern di accento compatti"""
         # Sottoriquadro colorato per Accent
         accent_frame = tk.Frame(parent, bg='#fff5f5', relief='solid', bd=1)
-        accent_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        accent_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
         # Header con pulsante di attivazione
         accent_header = tk.Frame(accent_frame, bg='#fff5f5')
@@ -1009,11 +997,11 @@ class CreativeChordWindow:
             strength_value.config(text=f"{self.accent_strength_var.get():.1f}")
         self.accent_strength_var.trace('w', update_strength)
     
-    def create_repeater_controls_compact(self, parent):
+    def create_repeater_controls_compact(self, parent, row, col):
         """Crea i controlli per il ripetitore di note compatti"""
         # Sottoriquadro colorato per Repeater
         repeater_frame = tk.Frame(parent, bg='#fff8e1', relief='solid', bd=1)
-        repeater_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        repeater_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
         # Header con pulsante di attivazione
         repeater_header = tk.Frame(repeater_frame, bg='#fff8e1')
@@ -1095,11 +1083,11 @@ class CreativeChordWindow:
             count_value.config(text=str(self.repeat_count_var.get()))
         self.repeat_count_var.trace('w', update_count)
     
-    def create_chord_gen_controls_compact(self, parent):
+    def create_chord_gen_controls_compact(self, parent, row, col):
         """Crea i controlli per il generatore di accordi compatti"""
         # Sottoriquadro colorato per Chord Generator
         chord_gen_frame = tk.Frame(parent, bg='#f3e5f5', relief='solid', bd=1)
-        chord_gen_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        chord_gen_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
         # Header con pulsante di attivazione
         chord_gen_header = tk.Frame(chord_gen_frame, bg='#f3e5f5')
