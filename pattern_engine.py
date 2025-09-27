@@ -923,27 +923,28 @@ class PatternEngine:
                     
                     # Riproduce le note con timing corretto
                     for i, note_event in enumerate(all_pattern_notes):
-                        # Controlla solo se è stato richiesto di fermare, non il playback_id durante il loop
                         if self.stop_requested:
                             break
-                        
+
                         # Calcola il numero MIDI
                         midi_note = self.midi_generator.note_to_midi_number(note_event.note, note_event.octave)
-                        
+
                         # Applica il ritardo se specificato (applica la velocità di riproduzione)
                         if note_event.delay > 0:
                             time.sleep(note_event.delay / current_playback_speed)
-                        
+
                         if self.stop_requested:
                             break
-                        
-                        # Riproduce la nota (applica la velocità di riproduzione)
+
+                        # La durata regola il tempo tra le note
                         adjusted_duration = note_event.duration / current_playback_speed
+                        
+                        # Riproduce la nota (ora non bloccante)
                         self._play_single_note(midi_note, adjusted_duration, note_event.volume, i, len(all_pattern_notes))
                         
-                        # La riproduzione della nota (e il suo timing) è gestita all'interno di _play_single_note_midi
-                        # Non è necessario un ulteriore sleep qui per il timing tra le note.
-                        pass
+                        # Il thread principale ora funge da metronomo, attendendo la durata della nota
+                        # prima di passare alla successiva.
+                        time.sleep(adjusted_duration)
                     
                     # Se non è in loop, esce dopo una volta
                     if not loop:
@@ -975,24 +976,22 @@ class PatternEngine:
         self.current_thread.daemon = True
         self.current_thread.start()
     
-    def _play_single_note(self, midi_note: int, duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
-        """Riproduce una singola nota in modo sincrono con controlli di stop"""
+    def _play_single_note(self, midi_note: int, step_duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
+        """Riproduce una singola nota in modo non bloccante con controlli di stop"""
         try:
-            # Controlla se dobbiamo fermarci prima di iniziare
             if self.stop_requested:
                 return
             
-            # Se MIDI è configurato, invia via MIDI invece di pygame
+            # Se MIDI è configurato, invia via MIDI
             if self.midi_output and self.midi_output.initialized and self.midi_output.output_port:
-                # Assicura che midi_note sia un intero
                 if not isinstance(midi_note, int):
                     print(f"WARNING: midi_note in _play_single_note is not int: {type(midi_note)} = {midi_note}")
                     midi_note = int(midi_note) if isinstance(midi_note, (int, float)) else 60
-                self._play_single_note_midi(midi_note, duration, volume, note_index, total_notes)
+                self._play_single_note_midi(midi_note, step_duration, volume, note_index, total_notes)
                 return
                 
-            # Altrimenti usa pygame (comportamento originale)
-            self._play_single_note_pygame(midi_note, duration, volume)
+            # Altrimenti usa pygame
+            self._play_single_note_pygame(midi_note, step_duration, volume)
         except (OSError, RuntimeError, ValueError) as e:
             print(f"Errore nella riproduzione della nota: {e}")
     
@@ -1168,8 +1167,8 @@ class PatternEngine:
         new_velocity = int(velocity * accent_multiplier)
         return max(1, min(127, new_velocity))
     
-    def _play_single_note_midi(self, midi_note: int, duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
-        """Riproduce la nota principale in modo sincrono e il delay in modo asincrono."""
+    def _play_single_note_midi(self, midi_note: int, step_duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
+        """Invia messaggi MIDI NOTE ON e schedula NOTE OFF e delay in background."""
         try:
             if self.stop_requested:
                 return
@@ -1177,39 +1176,35 @@ class PatternEngine:
             params = self.get_current_parameters()
             velocity = int(volume * 127)
             
+            # Calcola la durata del gate (es. 80% della durata del passo)
+            gate_duration = step_duration * 0.8 
+
             # Applica effetti che modificano la nota base (non-temporali)
             midi_note, velocity = self._apply_midi_effects(midi_note, velocity, note_index, total_notes)
 
             # Gestione del segnale WET (delay) in background
             if params['delay_enabled'] and params['delay_mix'] > 0:
-                # La velocity degli echi è ora una frazione del mix
                 echo_base_velocity = int(velocity * params['delay_mix'])
-                self._play_delay_echoes_async(midi_note, echo_base_velocity, duration, params)
+                self._play_delay_echoes_async(midi_note, echo_base_velocity, gate_duration, params) # Passa gate_duration
 
-            # Gestione del segnale DRY (nota originale) - SINCRONO
-            # La velocity del segnale dry è inversamente proporzionale al mix
+            # Gestione del segnale DRY (nota originale)
             dry_velocity = int(velocity * (1.0 - params['delay_mix']))
             
             if dry_velocity > 0:
-                # Se il repeater è attivo, la nota dry viene "ripetuta" in modo sincrono
                 if params['repeater_enabled']:
-                    repeated_notes = self._apply_repeater_effect(midi_note, dry_velocity, duration)
-                    for r_note, r_vel, r_dur in repeated_notes:
-                        if self.stop_requested: break
-                        self.midi_output.send_note_on(r_note, r_vel)
-                        time.sleep(r_dur)
-                        if not self.stop_requested:
-                            self.midi_output.send_note_off(r_note)
+                    self._play_repeater_async(midi_note, dry_velocity, gate_duration, params) # Passa gate_duration
                 else:
-                    # Altrimenti, suona la nota singola in modo sincrono
                     self.midi_output.send_note_on(midi_note, dry_velocity)
-                    time.sleep(duration)
-                    if not self.stop_requested:
-                        self.midi_output.send_note_off(midi_note)
-            else:
-                # Se il segnale dry è a zero, attendi comunque la durata della nota
-                # per mantenere il timing corretto del pattern.
-                time.sleep(duration)
+                    
+                    def note_off_worker(note, delay):
+                        time.sleep(delay)
+                        if not self.stop_requested:
+                            self.midi_output.send_note_off(note)
+                    
+                    t = threading.Thread(target=note_off_worker, args=(midi_note, gate_duration)) # Usa gate_duration
+                    t.daemon = True
+                    t.start()
+            # La funzione non attende (non è bloccante), il timing è gestito dal chiamante (play_worker)
 
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio MIDI: {e}")
@@ -1220,17 +1215,30 @@ class PatternEngine:
             delay_time = params['delay_time']
             feedback = params['delay_feedback']
             max_repeats = params['delay_repeats']
+            delay_type = params['delay_type']
+            playback_speed = params.get('playback_speed', 1.0)  # Get playback_speed safely
 
-            current_delay = delay_time
+            # Calcola il tempo di delay effettivo in base al tipo prima del loop
+            actual_delay_time = delay_time
+            if delay_type == "Dotted":
+                actual_delay_time *= 1.5
+            elif delay_type == "Triplet":
+                actual_delay_time *= 0.67
+
+            # Applica la velocità di riproduzione al tempo di delay
+            adjusted_delay_time = actual_delay_time / playback_speed if playback_speed > 0 else actual_delay_time
+
             for i in range(max_repeats):
-                time.sleep(current_delay)
+                # Usa il tempo di delay calcolato e costante per ogni eco
+                time.sleep(adjusted_delay_time)
                 if self.stop_requested: return
 
                 echo_velocity = int(velocity * (feedback ** (i + 1)))
-                if echo_velocity < 10: break
+                # Abbassa la soglia per permettere più ripetizioni a basso volume
+                if echo_velocity < 2: break
 
                 echo_duration = duration * (0.8 ** (i + 1))
-                echo_note = self._get_echo_note(midi_note, i, params['delay_type'])
+                echo_note = self._get_echo_note(midi_note, i, delay_type)
 
                 if params['repeater_enabled']:
                     repeated_echoes = self._apply_repeater_effect(echo_note, echo_velocity, echo_duration)
@@ -1245,14 +1253,23 @@ class PatternEngine:
                     time.sleep(echo_duration)
                     if not self.stop_requested:
                         self.midi_output.send_note_off(echo_note)
-                
-                # Per alcuni tipi di delay, il tempo tra echi non è costante
-                if params['delay_type'] == "Dotted":
-                    current_delay *= 1.5
-                elif params['delay_type'] == "Triplet":
-                    current_delay *= 0.67
 
         t = threading.Thread(target=delay_worker)
+        t.daemon = True
+        t.start()
+
+    def _play_repeater_async(self, midi_note: int, velocity: int, duration: float, params: dict):
+        """Esegue l'effetto repeater in un thread separato."""
+        def repeater_worker():
+            repeated_notes = self._apply_repeater_effect(midi_note, velocity, duration)
+            for r_note, r_vel, r_dur in repeated_notes:
+                if self.stop_requested: break
+                self.midi_output.send_note_on(r_note, r_vel)
+                time.sleep(r_dur)
+                if not self.stop_requested:
+                    self.midi_output.send_note_off(r_note)
+
+        t = threading.Thread(target=repeater_worker)
         t.daemon = True
         t.start()
 
@@ -1265,20 +1282,26 @@ class PatternEngine:
             return max(0, min(127, base_note - 12))
         return base_note
     
-    def _play_single_note_pygame(self, midi_note: int, duration: float, volume: float):
-        """Riproduce una singola nota via pygame (comportamento originale)"""
+    def _play_single_note_pygame(self, midi_note: int, step_duration: float, volume: float):
+        """Riproduce una singola nota via pygame con gate duration."""
         try:
+            if self.stop_requested:
+                return
+
+            # Calcola la durata del gate (es. 80% della durata del passo)
+            gate_duration = step_duration * 0.8 
+            
             # Calcola la frequenza dalla nota MIDI
             frequency = 440.0 * (2 ** ((midi_note - 69) / 12.0))
             
             # Crea un tono sinusoidale
             sample_rate = 22050
-            frames = int(duration * sample_rate)
+            frames = int(gate_duration * sample_rate) # Usa gate_duration per i frames
             
             # Genera onda sinusoidale usando numpy se disponibile
             try:
                 import numpy as np
-                t = np.linspace(0, duration, frames, False)
+                t = np.linspace(0, gate_duration, frames, False) # Usa gate_duration
                 wave = np.sin(2 * np.pi * frequency * t)
                 
                 # Aggiunge fade-in e fade-out per evitare click
@@ -1299,17 +1322,18 @@ class PatternEngine:
                 # Crea array stereo
                 stereo_wave = np.column_stack((wave, wave))
                 
-                # Riproduce il suono e aspetta che finisca
+                # Riproduce il suono in un thread separato per non bloccare il metronomo
                 import pygame
                 sound = pygame.sndarray.make_sound(stereo_wave)
-                sound.play()
                 
-                # Aspetta che la nota finisca di suonare, controllando periodicamente se dobbiamo fermarci
-                sleep_chunks = int(duration / 0.01) + 1  # Controlla ogni 10ms
-                for _ in range(sleep_chunks):
-                    if self.stop_requested:
-                        break
-                    time.sleep(0.01)
+                def pygame_note_worker(s, d):
+                    s.play()
+                    time.sleep(d) # Attende la gate_duration
+                    s.stop() # Ferma il suono dopo la gate_duration
+                
+                t = threading.Thread(target=pygame_note_worker, args=(sound, gate_duration))
+                t.daemon = True
+                t.start()
                 
             except ImportError:
                 # Fallback senza numpy
@@ -1319,7 +1343,7 @@ class PatternEngine:
                 for j in range(frames):
                     time_val = j / sample_rate
                     # Genera onda sinusoidale semplice
-                    wave_val = math.sin(2 * math.pi * frequency * time_val)
+                    wave_val = math.sin(2 * np.pi * frequency * time_val)
                     
                     # Aggiunge fade-in e fade-out
                     fade_samples = int(0.01 * sample_rate)
@@ -1335,16 +1359,16 @@ class PatternEngine:
                     wave_val = int(4096 * volume * wave_val)
                     arr.append([wave_val, wave_val])
                 
-                # Riproduce il suono e aspetta che finisca
                 sound = pygame.sndarray.make_sound(arr)
-                sound.play()
                 
-                # Aspetta che la nota finisca di suonare, controllando periodicamente se dobbiamo fermarci
-                sleep_chunks = int(duration / 0.01) + 1  # Controlla ogni 10ms
-                for _ in range(sleep_chunks):
-                    if self.stop_requested:
-                        break
-                    time.sleep(0.01)
+                def pygame_note_worker(s, d):
+                    s.play()
+                    time.sleep(d) # Attende la gate_duration
+                    s.stop() # Ferma il suono dopo la gate_duration
+                
+                t = threading.Thread(target=pygame_note_worker, args=(sound, gate_duration))
+                t.daemon = True
+                t.start()
                 
         except (OSError, RuntimeError, ValueError) as e:
             print(f"Errore nella riproduzione della nota: {e}")
