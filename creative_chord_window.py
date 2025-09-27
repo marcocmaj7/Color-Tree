@@ -46,6 +46,8 @@ class CreativeChordWindow:
         self.delay_type_var = tk.StringVar(value="Standard")  # Tipo di delay
         self.delay_repeats_var = tk.IntVar(value=3)  # Numero ripetizioni
         self.octave_add_var = tk.IntVar(value=0)
+        self.octave_shift_1_var = tk.IntVar(value=0) # Nuova variabile per ottava shift 1
+        self.octave_shift_2_var = tk.IntVar(value=0) # Nuova variabile per ottava shift 2
         self.velocity_curve_var = tk.StringVar(value="linear")
         self.velocity_intensity_var = tk.DoubleVar(value=1.0)
         self.accent_enabled_var = tk.BooleanVar(value=False)
@@ -72,6 +74,8 @@ class CreativeChordWindow:
         self.bpm_label = None
         self.playback_speed_label = None
         self.octave_add_label = None
+        self.octave_shift_1_label = None # Nuovo label per ottava shift 1
+        self.octave_shift_2_label = None # Nuovo label per ottava shift 2
 
         # Pulsanti degli effetti MIDI
         self.delay_btn = None
@@ -79,7 +83,8 @@ class CreativeChordWindow:
         
         # Pulsanti degli effetti MIDI
         self.delay_btn = None
-        self.octave_btn = None
+        self.octave_btn = None # Pulsante per il controllo principale dell'ottava
+        # I pulsanti per Shift 1 e Shift 2 non sono pulsanti di attivazione, ma parte del controllo up/down
         self.velocity_btn = None
         self.accent_btn = None
         self.repeater_btn = None
@@ -103,7 +108,7 @@ class CreativeChordWindow:
         self.update_speed_display()
         self.update_bpm_display()
         
-        # Inizializza i pulsanti degli effetti
+        # Inizializza i pulsanti e i label degli effetti
         self.initialize_effect_buttons()
         
         self.setup_keyboard_shortcuts()
@@ -206,12 +211,26 @@ class CreativeChordWindow:
                 self.delay_btn.config(bg='#95a5a6', fg='white')
                 self.delay_type_button.config(bg='#95a5a6', fg='white')
         
-        # Octave
-        if hasattr(self, 'octave_btn'):
+        # Octave (existing control)
+        if hasattr(self, 'octave_btn') and self.octave_btn.winfo_exists():
             if self.octave_add_var.get() != 0:
                 self.octave_btn.config(bg='#9b59b6', fg='white')
             else:
                 self.octave_btn.config(bg='#95a5a6', fg='white')
+        
+        # Octave Shift 1 (label, not a button)
+        if hasattr(self, 'octave_shift_1_label') and self.octave_shift_1_label.winfo_exists():
+            if self.octave_shift_1_var.get() != 0:
+                self.octave_shift_1_label.config(bg='#9b59b6', fg='white')
+            else:
+                self.octave_shift_1_label.config(bg='#95a5a6', fg='white')
+        
+        # Octave Shift 2 (label, not a button)
+        if hasattr(self, 'octave_shift_2_label') and self.octave_shift_2_label.winfo_exists():
+            if self.octave_shift_2_var.get() != 0:
+                self.octave_shift_2_label.config(bg='#9b59b6', fg='white')
+            else:
+                self.octave_shift_2_label.config(bg='#95a5a6', fg='white')
         
         # Velocity
         if hasattr(self, 'velocity_btn'):
@@ -652,9 +671,9 @@ class CreativeChordWindow:
         for j in range(2):  # 2 colonne
             effects_grid.grid_columnconfigure(j, weight=1, uniform="col")
         
-        # Riga 1: Delay e Octave
+        # Riga 1: Delay e Octave (controllo esistente)
         self.create_delay_controls_compact(effects_grid, 0, 0)
-        self.create_octave_controls_compact(effects_grid, 0, 1)
+        self.create_octave_controls_group(effects_grid, 0, 1) # Gruppo per tutti i controlli ottava
         
         # Riga 2: Velocity e Accent
         self.create_velocity_controls_compact(effects_grid, 1, 0)
@@ -776,37 +795,55 @@ class CreativeChordWindow:
         # Aggiungi un binding per il click diretto sul Combobox
         self.type_combo.bind('<Button-1>', lambda e: self.on_combobox_click())
     
-    def create_octave_controls_compact(self, parent, row, col):
-        """Crea i controlli per l'aggiunta di ottave compatti"""
-        # Sottoriquadro colorato per Octave
-        octave_frame = tk.Frame(parent, bg='#f0f8ff', relief='solid', bd=1)
-        octave_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
+    def create_octave_controls_group(self, parent, row, col):
+        """Crea un gruppo di controlli per tutte le ottave"""
+        octave_group_frame = tk.Frame(parent, bg='#f0f8ff', relief='solid', bd=1)
+        octave_group_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
         
-        # Header con pulsante di attivazione
-        octave_header = tk.Frame(octave_frame, bg='#f0f8ff')
-        octave_header.pack(fill='x', padx=5, pady=3)
+        # Header per il gruppo Octave
+        group_header = tk.Frame(octave_group_frame, bg='#f0f8ff')
+        group_header.pack(fill='x', padx=5, pady=3)
         
-        # Pulsante di attivazione octave (come loop/reverse)
-        self.octave_btn = tk.Button(octave_header, text="Octave", 
-                                  font=('Segoe UI', 8, 'bold'),
-                                  bg='#95a5a6', fg='white',
-                                  command=self.toggle_octave,
-                                  width=8, height=1,
-                                  relief='flat', bd=0,
-                                  cursor='hand2',
-                                  activebackground='#7f8c8d',
-                                  activeforeground='white')
-        self.octave_btn.pack(side='left')
+        group_label = tk.Label(group_header, text="Octave Controls", 
+                               font=('Segoe UI', 9, 'bold'), 
+                               bg='#f0f8ff', fg='#2c3e50')
+        group_label.pack(side='left')
         
-        # Controlli ottava compatti
-        octave_controls = tk.Frame(octave_frame, bg='#f0f8ff')
-        octave_controls.pack(fill='x', padx=5, pady=(0, 5))
+        # Frame per i controlli individuali di ottava
+        octave_controls_container = tk.Frame(octave_group_frame, bg='#f0f8ff')
+        octave_controls_container.pack(fill='both', expand=True, padx=5, pady=(0, 5))
+        
+        # Controllo Ottava esistente (con pulsante di attivazione/reset)
+        self.create_octave_control_with_toggle(octave_controls_container, "Octave", self.octave_add_var, 0)
+        
+        # Nuovo controllo Ottava Shift 1 (solo up/down buttons)
+        self.create_octave_shift_control(octave_controls_container, "Shift 1", self.octave_shift_1_var, 1)
+        
+        # Nuovo controllo Ottava Shift 2 (solo up/down buttons)
+        self.create_octave_shift_control(octave_controls_container, "Shift 2", self.octave_shift_2_var, 2)
+
+    def create_octave_control_with_toggle(self, parent, label_text, var, row_idx):
+        """Crea un singolo set di controlli per l'ottava con un pulsante di attivazione/reset"""
+        control_frame = tk.Frame(parent, bg='#f0f8ff')
+        control_frame.pack(fill='x', pady=2)
+        
+        # Pulsante di attivazione/reset
+        toggle_btn = tk.Button(control_frame, text=label_text, 
+                               font=('Segoe UI', 8, 'bold'),
+                               bg='#95a5a6', fg='white',
+                               command=lambda: self.toggle_octave_main(var, toggle_btn), # Usa un toggle specifico
+                               width=8, height=1,
+                               relief='flat', bd=0,
+                               cursor='hand2',
+                               activebackground='#7f8c8d',
+                               activeforeground='white')
+        toggle_btn.pack(side='left', padx=(0, 5))
         
         # Pulsanti freccia per ottava
-        octave_down = tk.Button(octave_controls, text="▼", 
+        octave_down = tk.Button(control_frame, text="▼", 
                               font=('Segoe UI', 7, 'bold'),
                               bg='#9b59b6', fg='white',
-                              command=self.decrease_octave_add,
+                              command=lambda: self.decrease_octave_shift(var),
                               width=2, height=1,
                               relief='flat', bd=0,
                               cursor='hand2',
@@ -814,16 +851,17 @@ class CreativeChordWindow:
                               activeforeground='white')
         octave_down.pack(side='left', padx=(0, 1))
         
-        self.octave_add_label = tk.Label(octave_controls, text="0", 
-                                       font=('Segoe UI', 8, 'bold'), 
-                                       bg='#9b59b6', fg='white',
-                                       width=4, relief='flat')
-        self.octave_add_label.pack(side='left', padx=(1, 1))
+        # Label per il valore dell'ottava
+        label_widget = tk.Label(control_frame, text="0", 
+                                font=('Segoe UI', 8, 'bold'), 
+                                bg='#9b59b6', fg='white',
+                                width=4, relief='flat')
+        label_widget.pack(side='left', padx=(1, 1))
         
-        octave_up = tk.Button(octave_controls, text="▲", 
+        octave_up = tk.Button(control_frame, text="▲", 
                             font=('Segoe UI', 7, 'bold'),
                             bg='#9b59b6', fg='white',
-                            command=self.increase_octave_add,
+                            command=lambda: self.increase_octave_shift(var),
                             width=2, height=1,
                             relief='flat', bd=0,
                             cursor='hand2',
@@ -832,10 +870,81 @@ class CreativeChordWindow:
         octave_up.pack(side='left', padx=(1, 0))
         
         # Update label when value changes
-        def update_octave_add_value(*_):
-            val = self.octave_add_var.get()
-            self.octave_add_label.config(text=f"{val:+d}")
-        self.octave_add_var.trace('w', update_octave_add_value)
+        def update_octave_value(*_):
+            val = var.get()
+            label_widget.config(text=f"{val:+d}")
+            # Aggiorna il colore del pulsante toggle in base al valore
+            if val != 0:
+                toggle_btn.config(bg='#9b59b6', fg='white')
+            else:
+                toggle_btn.config(bg='#95a5a6', fg='white')
+            self.on_effect_change() # Notifica il cambio per aggiornare il pattern engine
+        var.trace('w', update_octave_value)
+        
+        # Salva il riferimento al pulsante e al label per l'inizializzazione
+        if label_text == "Octave":
+            self.octave_btn = toggle_btn
+            self.octave_add_label = label_widget
+    
+    def create_octave_shift_control(self, parent, label_text, var, row_idx):
+        """Crea un singolo set di controlli per l'ottava (solo label e up/down)"""
+        control_frame = tk.Frame(parent, bg='#f0f8ff')
+        control_frame.pack(fill='x', pady=2)
+        
+        # Label per il nome del controllo
+        name_label = tk.Label(control_frame, text=label_text, 
+                              font=('Segoe UI', 8, 'bold'), 
+                              bg='#f0f8ff', fg='#2c3e50',
+                              width=8, anchor='w')
+        name_label.pack(side='left', padx=(0, 5))
+        
+        # Pulsanti freccia per ottava
+        octave_down = tk.Button(control_frame, text="▼", 
+                              font=('Segoe UI', 7, 'bold'),
+                              bg='#9b59b6', fg='white',
+                              command=lambda: self.decrease_octave_shift(var),
+                              width=2, height=1,
+                              relief='flat', bd=0,
+                              cursor='hand2',
+                              activebackground='#8e44ad',
+                              activeforeground='white')
+        octave_down.pack(side='left', padx=(0, 1))
+        
+        # Label per il valore dell'ottava
+        label_widget = tk.Label(control_frame, text="0", 
+                                font=('Segoe UI', 8, 'bold'), 
+                                bg='#9b59b6', fg='white',
+                                width=4, relief='flat')
+        label_widget.pack(side='left', padx=(1, 1))
+        
+        octave_up = tk.Button(control_frame, text="▲", 
+                            font=('Segoe UI', 7, 'bold'),
+                            bg='#9b59b6', fg='white',
+                            command=lambda: self.increase_octave_shift(var),
+                            width=2, height=1,
+                            relief='flat', bd=0,
+                            cursor='hand2',
+                            activebackground='#8e44ad',
+                            activeforeground='white')
+        octave_up.pack(side='left', padx=(1, 0))
+        
+        # Update label when value changes
+        def update_octave_value(*_):
+            val = var.get()
+            label_widget.config(text=f"{val:+d}")
+            # Aggiorna il colore del label in base al valore
+            if val != 0:
+                label_widget.config(bg='#9b59b6', fg='white')
+            else:
+                label_widget.config(bg='#95a5a6', fg='white')
+            self.on_effect_change() # Notifica il cambio per aggiornare il pattern engine
+        var.trace('w', update_octave_value)
+        
+        # Salva il riferimento al label per l'inizializzazione
+        if label_text == "Shift 1":
+            self.octave_shift_1_label = label_widget
+        elif label_text == "Shift 2":
+            self.octave_shift_2_label = label_widget
     
     def create_velocity_controls_compact(self, parent, row, col):
         """Crea i controlli per la curva di velocità compatti"""
@@ -1548,19 +1657,19 @@ class CreativeChordWindow:
         self.log_message(f"Note duration changed to: {duration}")
         self.update_parameters_realtime()
     
-    def increase_octave_add(self):
-        """Aumenta l'ottava da aggiungere"""
-        current = self.octave_add_var.get()
-        if current < 3:
-            self.octave_add_var.set(current + 1)
-            self.on_effect_change()
+    def increase_octave_shift(self, var):
+        """Aumenta l'ottava da aggiungere per una variabile specifica"""
+        current = var.get()
+        if current < 3: # Limite superiore +3
+            var.set(current + 1)
+            # self.on_effect_change() # Chiamato dal trace di var
     
-    def decrease_octave_add(self):
-        """Diminuisce l'ottava da aggiungere"""
-        current = self.octave_add_var.get()
-        if current > -3:
-            self.octave_add_var.set(current - 1)
-            self.on_effect_change()
+    def decrease_octave_shift(self, var):
+        """Diminuisce l'ottava da aggiungere per una variabile specifica"""
+        current = var.get()
+        if current > -3: # Limite inferiore -3
+            var.set(current - 1)
+            # self.on_effect_change() # Chiamato dal trace di var
     
     def on_effect_change(self, event=None):
         """Gestisce il cambio di effetti MIDI"""
@@ -1697,16 +1806,13 @@ class CreativeChordWindow:
         except (tk.TclError, AttributeError, RuntimeError) as e:
             print(f"Errore nell'apertura del Combobox: {e}")
     
-    def toggle_octave(self):
-        """Toggle dell'ottava"""
-        # Toggle tra 0 e 1 per l'ottava
-        if self.octave_add_var.get() == 0:
-            self.octave_add_var.set(1)
-            self.octave_btn.config(bg='#9b59b6', fg='white')
+    def toggle_octave_main(self, var, button_widget):
+        """Toggle del controllo principale dell'ottava (reset a 0 o imposta a 1)"""
+        if var.get() != 0:
+            var.set(0)
         else:
-            self.octave_add_var.set(0)
-            self.octave_btn.config(bg='#95a5a6', fg='white')
-        self.on_effect_change()
+            var.set(1) # Imposta a 1 se era 0
+        # Il colore del pulsante viene aggiornato tramite il trace della variabile
     
     def toggle_velocity(self):
         """Toggle della velocity curve"""
@@ -1773,7 +1879,7 @@ class CreativeChordWindow:
                     delay_mix=self.delay_mix_var.get(),
                     delay_type=self.delay_type_var.get(),
                     delay_repeats=self.delay_repeats_var.get(),
-                    octave_add=self.octave_add_var.get(),
+                    octave_add=self.octave_add_var.get() + self.octave_shift_1_var.get() + self.octave_shift_2_var.get(), # Somma tutte le ottave
                     velocity_curve=self.velocity_curve_var.get(),
                     velocity_intensity=self.velocity_intensity_var.get(),
                     accent_enabled=self.accent_enabled_var.get(),
@@ -1936,7 +2042,7 @@ class CreativeChordWindow:
                 delay_mix=self.delay_mix_var.get(),
                 delay_type=self.delay_type_var.get(),
                 delay_repeats=self.delay_repeats_var.get(),
-                octave_add=self.octave_add_var.get(),
+                octave_add=self.octave_add_var.get() + self.octave_shift_1_var.get() + self.octave_shift_2_var.get(), # Somma tutte le ottave
                 velocity_curve=self.velocity_curve_var.get(),
                 velocity_intensity=self.velocity_intensity_var.get(),
                 accent_enabled=self.accent_enabled_var.get(),
