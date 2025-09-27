@@ -9,108 +9,6 @@ from pattern_engine import PatternEngine, PatternType
 from chord_generator import SoundCell, MIDIScaleGenerator
 
 
-class RotaryKnob:
-    """Classe per creare knob rotativi personalizzati"""
-    
-    def __init__(self, parent, width=60, height=60, min_val=0, max_val=100, 
-                 initial_val=50, label="", color='#3498db', callback=None):
-        self.parent = parent
-        self.width = width
-        self.height = height
-        self.min_val = min_val
-        self.max_val = max_val
-        self.value = initial_val
-        self.label = label
-        self.color = color
-        self.callback = callback
-        
-        # Crea il frame principale
-        self.frame = tk.Frame(parent, bg='#f8f9fa')
-        
-        # Label del parametro
-        self.label_widget = tk.Label(self.frame, text=label, 
-                                   font=('Segoe UI', 8), 
-                                   bg='#f8f9fa', fg='#7f8c8d')
-        self.label_widget.pack()
-        
-        # Canvas per il knob
-        self.canvas = tk.Canvas(self.frame, width=width, height=height, 
-                               bg='#f8f9fa', highlightthickness=0)
-        self.canvas.pack()
-        
-        # Label del valore
-        self.value_widget = tk.Label(self.frame, text=f"{self.value:.1f}", 
-                                   font=('Segoe UI', 9, 'bold'), 
-                                   bg='#f8f9fa', fg='#2c3e50')
-        self.value_widget.pack()
-        
-        # Bind per il drag del mouse
-        self.canvas.bind("<Button-1>", self.on_click)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
-        
-        self.draw_knob()
-    
-    def draw_knob(self):
-        """Disegna il knob"""
-        self.canvas.delete("all")
-        
-        # Calcola la posizione dell'indicatore
-        angle = (self.value - self.min_val) / (self.max_val - self.min_val) * 270 - 135
-        angle_rad = math.radians(angle)
-        
-        # Centro del knob
-        center_x = self.width // 2
-        center_y = self.height // 2
-        radius = min(self.width, self.height) // 2 - 8
-        
-        # Disegna il cerchio esterno
-        self.canvas.create_oval(center_x - radius, center_y - radius,
-                               center_x + radius, center_y + radius,
-                               fill=self.color, outline='#2c3e50', width=2)
-        
-        # Disegna l'indicatore
-        indicator_x = center_x + radius * 0.7 * math.cos(angle_rad)
-        indicator_y = center_y + radius * 0.7 * math.sin(angle_rad)
-        
-        self.canvas.create_line(center_x, center_y, indicator_x, indicator_y,
-                               fill='white', width=3, capstyle='round')
-        
-        # Punto centrale
-        self.canvas.create_oval(center_x - 3, center_y - 3,
-                               center_x + 3, center_y + 3,
-                               fill='white', outline='#2c3e50')
-    
-    def on_click(self, event):
-        """Gestisce il click del mouse"""
-        self.last_y = event.y
-        self.last_value = self.value
-    
-    def on_drag(self, event):
-        """Gestisce il drag del mouse"""
-        if hasattr(self, 'last_y'):
-            # Calcola la variazione
-            delta_y = self.last_y - event.y
-            sensitivity = 2.0
-            delta_value = delta_y * sensitivity
-            
-            # Aggiorna il valore
-            new_value = self.last_value + delta_value
-            new_value = max(self.min_val, min(self.max_val, new_value))
-            
-            self.set_value(new_value)
-    
-    def set_value(self, value):
-        """Imposta il valore del knob"""
-        self.value = max(self.min_val, min(self.max_val, value))
-        self.value_widget.config(text=f"{self.value:.1f}")
-        self.draw_knob()
-        
-        if self.callback:
-            self.callback(self.value)
-    
-    def get_value(self):
-        """Restituisce il valore corrente"""
-        return self.value
 
 
 class CreativeChordWindow:
@@ -759,7 +657,7 @@ class CreativeChordWindow:
         self.create_chord_gen_controls_compact(effects_grid, 2, 1)
     
     def create_delay_controls_compact(self, parent, row, col):
-        """Crea i controlli per l'effetto Delay (MIDI Echo) con knob rotativi"""
+        """Crea i controlli per l'effetto Delay (MIDI Echo) con slider"""
         # Sottoriquadro colorato per Delay
         delay_frame = tk.Frame(parent, bg='#e8f4fd', relief='solid', bd=1)
         delay_frame.grid(row=row, column=col, sticky='nsew', padx=2, pady=2)
@@ -768,7 +666,6 @@ class CreativeChordWindow:
         delay_header = tk.Frame(delay_frame, bg='#e8f4fd')
         delay_header.pack(fill='x', padx=5, pady=3)
         
-        # Pulsante di attivazione delay
         self.delay_btn = tk.Button(delay_header, text="🎛️ Delay", 
                                  font=('Segoe UI', 9, 'bold'),
                                  bg='#95a5a6', fg='white',
@@ -780,94 +677,64 @@ class CreativeChordWindow:
                                  activeforeground='white')
         self.delay_btn.pack(side='left')
         
-        # Controlli delay con knob
+        # Controlli delay con slider
         delay_controls = tk.Frame(delay_frame, bg='#e8f4fd')
         delay_controls.pack(fill='both', expand=True, padx=5, pady=(0, 5))
-        
-        # Layout a griglia 3x2 per i knob
-        knob_grid = tk.Frame(delay_controls, bg='#e8f4fd')
-        knob_grid.pack(fill='both', expand=True)
-        
-        # Riga 1: Mix e Time
-        mix_frame = tk.Frame(knob_grid, bg='#e8f4fd')
-        mix_frame.grid(row=0, column=0, padx=2, pady=2, sticky='nsew')
-        
-        time_frame = tk.Frame(knob_grid, bg='#e8f4fd')
-        time_frame.grid(row=0, column=1, padx=2, pady=2, sticky='nsew')
-        
-        # Riga 2: Feedback e Velocity
-        feedback_frame = tk.Frame(knob_grid, bg='#e8f4fd')
-        feedback_frame.grid(row=1, column=0, padx=2, pady=2, sticky='nsew')
-        
-        velocity_frame = tk.Frame(knob_grid, bg='#e8f4fd')
-        velocity_frame.grid(row=1, column=1, padx=2, pady=2, sticky='nsew')
-        
-        # Riga 3: Repeats e Type
-        repeats_frame = tk.Frame(knob_grid, bg='#e8f4fd')
-        repeats_frame.grid(row=2, column=0, padx=2, pady=2, sticky='nsew')
-        
-        type_frame = tk.Frame(knob_grid, bg='#e8f4fd')
-        type_frame.grid(row=2, column=1, padx=2, pady=2, sticky='nsew')
-        
-        # Configurazione griglia uniforme
-        for i in range(3):
-            knob_grid.grid_rowconfigure(i, weight=1, uniform="row")
-        for j in range(2):
-            knob_grid.grid_columnconfigure(j, weight=1, uniform="col")
-        
-        # Knob Mix (0-100%)
-        self.mix_knob = RotaryKnob(mix_frame, width=50, height=50, 
-                                  min_val=0, max_val=100, initial_val=50,
-                                  label="Mix", color='#e74c3c',
-                                  callback=self.on_mix_change)
-        self.mix_knob.frame.pack(fill='both', expand=True)
-        
-        # Knob Time (0.1-2.0s)
-        self.time_knob = RotaryKnob(time_frame, width=50, height=50,
-                                   min_val=0.1, max_val=2.0, initial_val=0.25,
-                                   label="Time", color='#f39c12',
-                                   callback=self.on_time_change)
-        self.time_knob.frame.pack(fill='both', expand=True)
-        
-        # Knob Feedback (0-95%)
-        self.feedback_knob = RotaryKnob(feedback_frame, width=50, height=50,
-                                       min_val=0, max_val=95, initial_val=30,
-                                       label="Feedback", color='#9b59b6',
-                                       callback=self.on_feedback_change)
-        self.feedback_knob.frame.pack(fill='both', expand=True)
-        
-        # Knob Velocity (0.1-1.0)
-        self.velocity_knob = RotaryKnob(velocity_frame, width=50, height=50,
-                                       min_val=0.1, max_val=1.0, initial_val=0.8,
-                                       label="Velocity", color='#2ecc71',
-                                       callback=self.on_velocity_change)
-        self.velocity_knob.frame.pack(fill='both', expand=True)
-        
-        # Knob Repeats (1-8)
-        self.repeats_knob = RotaryKnob(repeats_frame, width=50, height=50,
-                                      min_val=1, max_val=8, initial_val=3,
-                                      label="Repeats", color='#34495e',
-                                      callback=self.on_repeats_change)
-        self.repeats_knob.frame.pack(fill='both', expand=True)
-        
+
+        def _create_slider(p, text, var, from_, to, is_int=False):
+            slider_frame = tk.Frame(p, bg='#e8f4fd')
+            slider_frame.pack(fill='x', expand=True, pady=1)
+            
+            label = tk.Label(slider_frame, text=text, font=('Segoe UI', 8), 
+                             bg='#e8f4fd', fg='#2c3e50', width=8, anchor='w')
+            label.pack(side='left')
+            
+            # Mostra il valore
+            value_label = tk.Label(slider_frame, font=('Segoe UI', 8, 'bold'),
+                                   bg='#e8f4fd', fg='#34495e', width=4)
+            value_label.pack(side='right', padx=(2,0))
+
+            def update_label(*_):
+                if is_int:
+                    value_label.config(text=f"{var.get()}")
+                else:
+                    value_label.config(text=f"{var.get():.2f}")
+            var.trace_add('write', update_label)
+            
+            # Callback per aggiornare il valore e notificare il cambiamento
+            def slider_callback(value):
+                if is_int:
+                    var.set(int(float(value)))
+                else:
+                    var.set(float(value))
+                update_label()
+                self.on_effect_change()
+
+            slider = ttk.Scale(slider_frame, from_=from_, to=to,
+                               orient='horizontal', variable=var,
+                               command=slider_callback)
+            slider.pack(side='right', fill='x', expand=True)
+            update_label() # Set initial value
+
+        _create_slider(delay_controls, "Mix", self.delay_mix_var, 0.0, 1.0)
+        _create_slider(delay_controls, "Time", self.delay_time_var, 0.1, 2.0)
+        _create_slider(delay_controls, "Feedback", self.delay_feedback_var, 0.0, 0.95)
+        _create_slider(delay_controls, "Velocity", self.delay_velocity_var, 0.1, 1.0)
+        _create_slider(delay_controls, "Repeats", self.delay_repeats_var, 1, 8, is_int=True)
+
         # Tipo di delay (dropdown)
+        type_frame = tk.Frame(delay_controls, bg='#e8f4fd')
+        type_frame.pack(fill='x', expand=True, pady=1)
         type_label = tk.Label(type_frame, text="Type", font=('Segoe UI', 8), 
-                             bg='#e8f4fd', fg='#7f8c8d')
-        type_label.pack()
+                             bg='#e8f4fd', fg='#2c3e50', width=8, anchor='w')
+        type_label.pack(side='left')
         
         self.type_combo = ttk.Combobox(type_frame, textvariable=self.delay_type_var,
                                       values=["Standard", "Ping-Pong", "Dotted", 
                                              "Triplet", "Reverse", "Stutter"],
-                                      state="readonly", width=8, font=('Segoe UI', 8))
-        self.type_combo.pack(pady=(2, 0))
+                                      state="readonly", font=('Segoe UI', 8))
+        self.type_combo.pack(side='right', fill='x', expand=True)
         self.type_combo.bind('<<ComboboxSelected>>', self.on_type_change)
-        
-        # Inizializza i valori dei knob
-        self.mix_knob.set_value(self.delay_mix_var.get() * 100)
-        self.time_knob.set_value(self.delay_time_var.get())
-        self.feedback_knob.set_value(self.delay_feedback_var.get() * 100)
-        self.velocity_knob.set_value(self.delay_velocity_var.get())
-        self.repeats_knob.set_value(self.delay_repeats_var.get())
     
     def create_octave_controls_compact(self, parent, row, col):
         """Crea i controlli per l'aggiunta di ottave compatti"""
@@ -1662,30 +1529,6 @@ class CreativeChordWindow:
         self.update_parameters_realtime()
     
     # Metodi per i controlli knob compatti
-    def on_mix_change(self, value):
-        """Callback per il knob Mix"""
-        self.delay_mix_var.set(value / 100.0)
-        self.on_effect_change()
-    
-    def on_time_change(self, value):
-        """Callback per il knob Time"""
-        self.delay_time_var.set(value)
-        self.on_effect_change()
-    
-    def on_feedback_change(self, value):
-        """Callback per il knob Feedback"""
-        self.delay_feedback_var.set(value / 100.0)
-        self.on_effect_change()
-    
-    def on_velocity_change(self, value):
-        """Callback per il knob Velocity"""
-        self.delay_velocity_var.set(value)
-        self.on_effect_change()
-    
-    def on_repeats_change(self, value):
-        """Callback per il knob Repeats"""
-        self.delay_repeats_var.set(int(value))
-        self.on_effect_change()
     
     def on_type_change(self, event=None):
         """Callback per il tipo di delay"""
@@ -2022,42 +1865,40 @@ class CreativeChordWindow:
     def on_playback_finished(self):
         """Callback chiamato quando la riproduzione finisce"""
         self.is_playing = False
-        self.update_controls()
+        # Solo aggiorna i controlli se la finestra esiste ancora
+        if self.is_window_open():
+            self.update_controls()
         self.log_message("Playback finished.")
     
     def update_controls(self):
         """Aggiorna lo stato dei controlli"""
-        # Controlla se la finestra e i widget esistono ancora
         try:
-            if not hasattr(self, 'play_btn') or not hasattr(self, 'stop_btn'):
+            if not self.window.winfo_exists():
                 return
-            # Verifica se i widget esistono ancora
-            self.play_btn.winfo_exists()
-            self.stop_btn.winfo_exists()
         except (tk.TclError, AttributeError):
-            # La finestra è stata chiusa o i widget non esistono
             return
-        
+
         if self.is_playing:
-            self.play_btn.config(state='disabled', text="▶ Playing...", 
-                               bg='#95a5a6', cursor='arrow')
-            self.stop_btn.config(state='normal', bg='#e74c3c', cursor='hand2')
+            if self.play_btn and self.play_btn.winfo_exists():
+                self.play_btn.config(state='disabled', text="▶ Playing...", 
+                                   bg='#95a5a6', cursor='arrow')
+            if self.stop_btn and self.stop_btn.winfo_exists():
+                self.stop_btn.config(state='normal', bg='#e74c3c', cursor='hand2')
         else:
-            self.play_btn.config(state='normal', text="▶ Play", 
-                               bg='#27ae60', cursor='hand2')
-            self.stop_btn.config(state='disabled', bg='#bdc3c7', cursor='arrow')
+            if self.play_btn and self.play_btn.winfo_exists():
+                self.play_btn.config(state='normal', text="▶ Play", 
+                                   bg='#27ae60', cursor='hand2')
+            if self.stop_btn and self.stop_btn.winfo_exists():
+                self.stop_btn.config(state='disabled', bg='#bdc3c7', cursor='arrow')
         
-        # Aggiorna lo stato dei controlli pause
         self.update_pause_controls_state()
     
     def update_pause_controls_state(self):
         """Aggiorna lo stato dei controlli pause in base al loop"""
-        # Controlla se la finestra esiste ancora
         try:
-            if not hasattr(self, 'pattern_buttons') or not self.pattern_buttons:
+            if not self.window.winfo_exists():
                 return
-        except tk.TclError:
-            # La finestra è stata chiusa
+        except (tk.TclError, AttributeError):
             return
         
         is_loop_active = self.loop_var.get()

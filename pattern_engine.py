@@ -1177,96 +1177,104 @@ class PatternEngine:
         return max(1, min(127, new_velocity))
     
     def _play_single_note_midi(self, midi_note: int, duration: float, volume: float, note_index: int = 0, total_notes: int = 1):
-        """Riproduce una singola nota via MIDI - VERSIONE SINCRONA SENZA THREAD"""
+        """Riproduce una singola nota via MIDI gestendo delay in modo asincrono"""
         try:
-            # Controlla se dobbiamo fermarci prima di iniziare
             if self.stop_requested:
                 return
-            
-            # Applica effetti MIDI
-            velocity = int(volume * 127)  # Converte volume (0-1) a velocity (0-127)
-            
-            # Assicura che midi_note sia un intero
-            if not isinstance(midi_note, int):
-                print(f"WARNING: midi_note is not int: {type(midi_note)} = {midi_note}")
-                midi_note = int(midi_note) if isinstance(midi_note, (int, float)) else 60
-            
-            midi_note, velocity = self._apply_midi_effects(midi_note, velocity, note_index, total_notes)
-            
-            # Assicura che velocity sia ancora un intero dopo gli effetti
-            if not isinstance(velocity, int):
-                print(f"WARNING: velocity after effects is not int: {type(velocity)} = {velocity}")
-                velocity = int(velocity) if isinstance(velocity, (int, float)) else 64
-            
-            # Applica effetti di delay e repeater
-            delay_notes = self._apply_delay_effect(midi_note, velocity, duration)
-            repeater_notes = self._apply_repeater_effect(midi_note, velocity, duration)
-            
-            # Combina gli effetti in modo intelligente
-            all_notes = []
-            
-            # Se entrambi gli effetti sono disabilitati, riproduci solo la nota originale
+
             params = self.get_current_parameters()
-            delay_enabled = params['delay_enabled']
-            repeater_enabled = params['repeater_enabled']
+            velocity = int(volume * 127)
             
-            if not delay_enabled and not repeater_enabled:
-                # Nessun effetto attivo, riproduci solo la nota originale
-                all_notes = [(midi_note, velocity, duration)]
-            elif delay_enabled and not repeater_enabled:
-                # Solo delay attivo
-                all_notes = delay_notes
-            elif not delay_enabled and repeater_enabled:
-                # Solo repeater attivo
-                all_notes = repeater_notes
-            else:
-                # Entrambi gli effetti attivi - applica repeater a ogni nota del delay
-                for delay_note, delay_velocity, delay_duration in delay_notes:
-                    for _, repeat_velocity, repeat_duration in repeater_notes:
-                        # Usa la nota del delay ma con la velocity del repeater
-                        final_velocity = min(delay_velocity, repeat_velocity)
-                        final_duration = min(delay_duration, repeat_duration)
-                        all_notes.append((delay_note, final_velocity, final_duration))
-            
-            # Limita il numero massimo di note per evitare sovraccarico
-            max_notes = 20
-            if len(all_notes) > max_notes:
-                all_notes = all_notes[:max_notes]
-            
-            # Riproduce tutte le note generate dagli effetti
-            for note, vel, dur in all_notes:
-                if self.stop_requested:
-                    break
-                
-                # Assicura che note e velocity siano interi validi
-                # Converte note a int
-                if isinstance(note, (int, float)):
-                    note = int(note)
+            # Applica effetti che modificano la nota base (non-temporali)
+            midi_note, velocity = self._apply_midi_effects(midi_note, velocity, note_index, total_notes)
+
+            # Gestione del segnale DRY (nota originale)
+            if params['delay_mix'] < 1.0:
+                # Se il repeater è attivo, la nota dry viene "ripetuta"
+                if params['repeater_enabled']:
+                    repeated_notes = self._apply_repeater_effect(midi_note, velocity, duration)
+                    for r_note, r_vel, r_dur in repeated_notes:
+                        self.midi_output.send_note_on(r_note, r_vel)
+                        self._schedule_note_off(r_note, r_dur)
                 else:
-                    print(f"WARNING: note is not int/float: {type(note)} = {note}")
-                    note = 60  # C4 di default
-                note = max(0, min(127, note))  # Clamp to valid MIDI range
-                
-                # Converte velocity a int
-                if isinstance(vel, (int, float)):
-                    vel = int(vel)
-                else:
-                    print(f"WARNING: vel is not int/float: {type(vel)} = {vel}")
-                    vel = 64
-                vel = max(1, min(127, vel))  # Clamp to valid MIDI range
-                
-                # Invia Note On
-                self.midi_output.send_note_on(note, vel)
-                
-                # Aspetta per la durata specificata della nota
-                time.sleep(dur)
-                
-                # Invia Note Off solo se non è stato richiesto di fermare
-                if not self.stop_requested:
-                    self.midi_output.send_note_off(note)
-            
+                    # Altrimenti, suona la nota singola
+                    self.midi_output.send_note_on(midi_note, velocity)
+                    self._schedule_note_off(midi_note, duration)
+
+            # Gestione del segnale WET (delay) in background
+            if params['delay_enabled'] and params['delay_mix'] > 0:
+                self._play_delay_echoes_async(midi_note, velocity, duration, params)
+
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio MIDI: {e}")
+
+    def _schedule_note_off(self, note: int, duration: float):
+        """Schedula un evento NOTE OFF in un thread separato"""
+        def note_off_worker():
+            # Schedula la disattivazione della nota dopo la sua durata
+            sleep_chunks = int(duration / 0.01) + 1
+            for _ in range(sleep_chunks):
+                if self.stop_requested:
+                    break  # Interrompe se la riproduzione è stata fermata
+                time.sleep(0.01)
+            
+            if not self.stop_requested:
+                self.midi_output.send_note_off(note)
+
+        t = threading.Thread(target=note_off_worker)
+        t.daemon = True
+        t.start()
+
+    def _play_delay_echoes_async(self, midi_note: int, velocity: int, duration: float, params: dict):
+        """Genera e riproduce gli echi del delay in un thread separato"""
+        def delay_worker():
+            delay_time = params['delay_time']
+            feedback = params['delay_feedback']
+            delay_velocity_factor = params['delay_velocity']
+            max_repeats = params['delay_repeats']
+
+            for i in range(max_repeats):
+                # Attendi il tempo di delay prima di generare l'eco
+                sleep_chunks = int(delay_time / 0.01) + 1
+                for _ in range(sleep_chunks):
+                    if self.stop_requested:
+                        return
+                    time.sleep(0.01)
+
+                if self.stop_requested:
+                    return
+
+                # Calcola i parametri dell'eco
+                echo_velocity = int(velocity * delay_velocity_factor * (feedback ** (i + 1)))
+                if echo_velocity < 10:
+                    break  # Interrompe se l'eco è troppo debole
+
+                echo_duration = duration * (0.8 ** (i + 1))
+                echo_note = self._get_echo_note(midi_note, i, params['delay_type'])
+
+                # Se il repeater è attivo, ogni eco viene ripetuto
+                if params['repeater_enabled']:
+                    repeated_echoes = self._apply_repeater_effect(echo_note, echo_velocity, echo_duration)
+                    for r_note, r_vel, r_dur in repeated_echoes:
+                        self.midi_output.send_note_on(r_note, r_vel)
+                        self._schedule_note_off(r_note, r_dur)
+                else:
+                    self.midi_output.send_note_on(echo_note, echo_velocity)
+                    self._schedule_note_off(echo_note, echo_duration)
+        
+        t = threading.Thread(target=delay_worker)
+        t.daemon = True
+        t.start()
+
+    def _get_echo_note(self, base_note: int, echo_index: int, delay_type: str) -> int:
+        """Calcola la nota MIDI per un eco in base al tipo di delay"""
+        if delay_type == "Ping-Pong":
+            offset = 12 if echo_index % 2 == 0 else -12
+            return max(0, min(127, base_note + offset))
+        elif delay_type == "Reverse":
+            return max(0, min(127, base_note - 12))
+        # Per altri tipi di delay, la nota non cambia
+        return base_note
     
     def _play_single_note_pygame(self, midi_note: int, duration: float, volume: float):
         """Riproduce una singola nota via pygame (comportamento originale)"""
