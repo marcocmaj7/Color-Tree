@@ -68,6 +68,14 @@ class CreativeChordWindow:
         self.playback_speed_label = None
         self.octave_add_label = None
         
+        # Pulsanti degli effetti MIDI
+        self.delay_btn = None
+        self.octave_btn = None
+        self.velocity_btn = None
+        self.accent_btn = None
+        self.repeater_btn = None
+        self.chord_gen_btn = None
+        
         # Dizionario per tracciare i pulsanti pattern per l'evidenziazione
         self.pattern_buttons = {}
         
@@ -81,6 +89,9 @@ class CreativeChordWindow:
         # Inizializza la visualizzazione della velocità e BPM
         self.update_speed_display()
         self.update_bpm_display()
+        
+        # Inizializza i pulsanti degli effetti
+        self.initialize_effect_buttons()
         
         self.setup_keyboard_shortcuts()
         
@@ -170,6 +181,50 @@ class CreativeChordWindow:
         initial_pause = self.pause_duration_var.get()
         if initial_pause in self.pattern_buttons:
             self.highlight_selected_pause(initial_pause)
+    
+    def initialize_effect_buttons(self):
+        """Inizializza i colori dei pulsanti degli effetti"""
+        # Delay
+        if hasattr(self, 'delay_btn'):
+            if self.delay_enabled_var.get():
+                self.delay_btn.config(bg='#3498db', fg='white')
+            else:
+                self.delay_btn.config(bg='#95a5a6', fg='white')
+        
+        # Octave
+        if hasattr(self, 'octave_btn'):
+            if self.octave_add_var.get() != 0:
+                self.octave_btn.config(bg='#9b59b6', fg='white')
+            else:
+                self.octave_btn.config(bg='#95a5a6', fg='white')
+        
+        # Velocity
+        if hasattr(self, 'velocity_btn'):
+            if self.velocity_curve_var.get() != "linear":
+                self.velocity_btn.config(bg='#27ae60', fg='white')
+            else:
+                self.velocity_btn.config(bg='#95a5a6', fg='white')
+        
+        # Accent
+        if hasattr(self, 'accent_btn'):
+            if self.accent_enabled_var.get():
+                self.accent_btn.config(bg='#e74c3c', fg='white')
+            else:
+                self.accent_btn.config(bg='#95a5a6', fg='white')
+        
+        # Repeater
+        if hasattr(self, 'repeater_btn'):
+            if self.repeater_enabled_var.get():
+                self.repeater_btn.config(bg='#f39c12', fg='white')
+            else:
+                self.repeater_btn.config(bg='#95a5a6', fg='white')
+        
+        # Chord Generator
+        if hasattr(self, 'chord_gen_btn'):
+            if self.chord_gen_enabled_var.get():
+                self.chord_gen_btn.config(bg='#9b59b6', fg='white')
+            else:
+                self.chord_gen_btn.config(bg='#95a5a6', fg='white')
     
     def create_chord_info_compact(self, parent):
         """Crea informazioni accordo compatte nel titolo"""
@@ -567,81 +622,150 @@ class CreativeChordWindow:
         self.duration_octaves_var.trace('w', update_duration_octaves_value)
     
     def create_midi_effects_controls(self, parent):
-        """Crea i controlli per gli effetti MIDI"""
+        """Crea i controlli per gli effetti MIDI compatti"""
         effects_frame = ttk.LabelFrame(parent, text="🎛️ MIDI Effects", 
-                                     style='Modern.TLabelframe', padding="10")
+                                     style='Modern.TLabelframe', padding="8")
         effects_frame.pack(fill='x', pady=(0, 15))
         
-        # Delay (MIDI Echo)
-        self.create_delay_controls(effects_frame)
+        # Layout a griglia per massimizzare lo spazio
+        effects_grid = tk.Frame(effects_frame, bg='#f8f9fa')
+        effects_grid.pack(fill='x')
         
-        # Octave Addition
-        self.create_octave_controls(effects_frame)
+        # Riga 1: Delay e Octave
+        row1 = tk.Frame(effects_grid, bg='#f8f9fa')
+        row1.pack(fill='x', pady=(0, 5))
         
-        # Velocity Curve
-        self.create_velocity_controls(effects_frame)
+        # Delay (MIDI Echo) - compatto
+        self.create_delay_controls_compact(row1)
         
-        # Accent Patterns
-        self.create_accent_controls(effects_frame)
+        # Octave Addition - compatto
+        self.create_octave_controls_compact(row1)
         
-        # Note Repeater
-        self.create_repeater_controls(effects_frame)
+        # Riga 2: Velocity e Accent
+        row2 = tk.Frame(effects_grid, bg='#f8f9fa')
+        row2.pack(fill='x', pady=(0, 5))
         
-        # Chord Generator
-        self.create_chord_gen_controls(effects_frame)
+        # Velocity Curve - compatto
+        self.create_velocity_controls_compact(row2)
+        
+        # Accent Patterns - compatto
+        self.create_accent_controls_compact(row2)
+        
+        # Riga 3: Repeater e Chord Generator
+        row3 = tk.Frame(effects_grid, bg='#f8f9fa')
+        row3.pack(fill='x')
+        
+        # Note Repeater - compatto
+        self.create_repeater_controls_compact(row3)
+        
+        # Chord Generator - compatto
+        self.create_chord_gen_controls_compact(row3)
     
-    def create_delay_controls(self, parent):
-        """Crea i controlli per l'effetto Delay (MIDI Echo)"""
-        delay_frame = tk.Frame(parent, bg='#f8f9fa')
-        delay_frame.pack(fill='x', pady=(0, 8))
+    def create_delay_controls_compact(self, parent):
+        """Crea i controlli per l'effetto Delay (MIDI Echo) compatti"""
+        # Sottoriquadro colorato per Delay
+        delay_frame = tk.Frame(parent, bg='#e8f4fd', relief='solid', bd=1)
+        delay_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
         
-        # Checkbox per abilitare delay
-        delay_check = tk.Checkbutton(delay_frame, text="Delay (MIDI Echo)", 
-                                   variable=self.delay_enabled_var,
-                                   font=('Segoe UI', 9, 'bold'),
-                                   bg='#f8f9fa', fg='#2c3e50',
-                                   command=self.on_effect_change)
-        delay_check.pack(anchor='w')
+        # Header con pulsante di attivazione
+        delay_header = tk.Frame(delay_frame, bg='#e8f4fd')
+        delay_header.pack(fill='x', padx=5, pady=3)
         
-        # Controlli delay (solo se abilitato)
-        delay_controls = tk.Frame(delay_frame, bg='#f8f9fa')
-        delay_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        # Pulsante di attivazione delay (come loop/reverse)
+        self.delay_btn = tk.Button(delay_header, text="Delay", 
+                                 font=('Segoe UI', 8, 'bold'),
+                                 bg='#95a5a6', fg='white',
+                                 command=self.toggle_delay,
+                                 width=8, height=1,
+                                 relief='flat', bd=0,
+                                 cursor='hand2',
+                                 activebackground='#7f8c8d',
+                                 activeforeground='white')
+        self.delay_btn.pack(side='left')
         
-        # Delay Time
-        time_frame = tk.Frame(delay_controls, bg='#f8f9fa')
-        time_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        # Controlli delay compatti
+        delay_controls = tk.Frame(delay_frame, bg='#e8f4fd')
+        delay_controls.pack(fill='x', padx=5, pady=(0, 5))
         
-        time_label = tk.Label(time_frame, text="Time", font=('Segoe UI', 8), 
-                            bg='#f8f9fa', fg='#7f8c8d')
-        time_label.pack(anchor='w')
+        # Delay Time - knob style
+        time_frame = tk.Frame(delay_controls, bg='#e8f4fd')
+        time_frame.pack(side='left', fill='x', expand=True, padx=(0, 3))
         
-        time_scale = tk.Scale(time_frame, from_=0.1, to=2.0, resolution=0.1,
-                            variable=self.delay_time_var, orient='horizontal',
-                            length=80, showvalue=0, bg='#f8f9fa',
-                            command=self.on_effect_change)
-        time_scale.pack(fill='x')
+        time_label = tk.Label(time_frame, text="Time", font=('Segoe UI', 7), 
+                            bg='#e8f4fd', fg='#7f8c8d')
+        time_label.pack(anchor='center')
         
-        time_value = tk.Label(time_frame, text="0.25s", font=('Segoe UI', 8), 
-                            bg='#f8f9fa', fg='#2c3e50')
-        time_value.pack(anchor='w')
+        # Knob per delay time (0.1-2.0s)
+        time_knob_frame = tk.Frame(time_frame, bg='#e8f4fd')
+        time_knob_frame.pack(fill='x')
         
-        # Feedback
-        feedback_frame = tk.Frame(delay_controls, bg='#f8f9fa')
-        feedback_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        time_down = tk.Button(time_knob_frame, text="◀", 
+                            font=('Segoe UI', 6, 'bold'),
+                            bg='#e67e22', fg='white',
+                            command=self.decrease_delay_time,
+                            width=2, height=1,
+                            relief='flat', bd=0,
+                            cursor='hand2',
+                            activebackground='#d35400',
+                            activeforeground='white')
+        time_down.pack(side='left', padx=(0, 1))
         
-        feedback_label = tk.Label(feedback_frame, text="Feedback", font=('Segoe UI', 8), 
-                                bg='#f8f9fa', fg='#7f8c8d')
-        feedback_label.pack(anchor='w')
+        time_value = tk.Label(time_knob_frame, text="0.25s", 
+                            font=('Segoe UI', 7, 'bold'), 
+                            bg='#e67e22', fg='white',
+                            width=6, relief='flat')
+        time_value.pack(side='left', padx=(1, 1))
         
-        feedback_scale = tk.Scale(feedback_frame, from_=0.0, to=0.9, resolution=0.1,
-                                variable=self.delay_feedback_var, orient='horizontal',
-                                length=80, showvalue=0, bg='#f8f9fa',
-                                command=self.on_effect_change)
-        feedback_scale.pack(fill='x')
+        time_up = tk.Button(time_knob_frame, text="▶", 
+                          font=('Segoe UI', 6, 'bold'),
+                          bg='#e67e22', fg='white',
+                          command=self.increase_delay_time,
+                          width=2, height=1,
+                          relief='flat', bd=0,
+                          cursor='hand2',
+                          activebackground='#d35400',
+                          activeforeground='white')
+        time_up.pack(side='left', padx=(1, 0))
         
-        feedback_value = tk.Label(feedback_frame, text="0.3", font=('Segoe UI', 8), 
-                                bg='#f8f9fa', fg='#2c3e50')
-        feedback_value.pack(anchor='w')
+        # Feedback - knob style
+        feedback_frame = tk.Frame(delay_controls, bg='#e8f4fd')
+        feedback_frame.pack(side='left', fill='x', expand=True, padx=(3, 0))
+        
+        feedback_label = tk.Label(feedback_frame, text="Feedback", font=('Segoe UI', 7), 
+                                bg='#e8f4fd', fg='#7f8c8d')
+        feedback_label.pack(anchor='center')
+        
+        # Knob per feedback (0.0-0.9)
+        feedback_knob_frame = tk.Frame(feedback_frame, bg='#e8f4fd')
+        feedback_knob_frame.pack(fill='x')
+        
+        feedback_down = tk.Button(feedback_knob_frame, text="◀", 
+                                font=('Segoe UI', 6, 'bold'),
+                                bg='#9b59b6', fg='white',
+                                command=self.decrease_delay_feedback,
+                                width=2, height=1,
+                                relief='flat', bd=0,
+                                cursor='hand2',
+                                activebackground='#8e44ad',
+                                activeforeground='white')
+        feedback_down.pack(side='left', padx=(0, 1))
+        
+        feedback_value = tk.Label(feedback_knob_frame, text="0.3", 
+                                font=('Segoe UI', 7, 'bold'), 
+                                bg='#9b59b6', fg='white',
+                                width=6, relief='flat')
+        feedback_value.pack(side='left', padx=(1, 1))
+        
+        feedback_up = tk.Button(feedback_knob_frame, text="▶", 
+                              font=('Segoe UI', 6, 'bold'),
+                              bg='#9b59b6', fg='white',
+                              command=self.increase_delay_feedback,
+                              width=2, height=1,
+                              relief='flat', bd=0,
+                              cursor='hand2',
+                              activebackground='#8e44ad',
+                              activeforeground='white')
+        feedback_up.pack(side='left', padx=(1, 0))
         
         # Update labels when values change
         def update_delay_time(*_):
@@ -652,49 +776,60 @@ class CreativeChordWindow:
             feedback_value.config(text=f"{self.delay_feedback_var.get():.1f}")
         self.delay_feedback_var.trace('w', update_feedback)
     
-    def create_octave_controls(self, parent):
-        """Crea i controlli per l'aggiunta di ottave"""
-        octave_frame = tk.Frame(parent, bg='#f8f9fa')
-        octave_frame.pack(fill='x', pady=(0, 8))
+    def create_octave_controls_compact(self, parent):
+        """Crea i controlli per l'aggiunta di ottave compatti"""
+        # Sottoriquadro colorato per Octave
+        octave_frame = tk.Frame(parent, bg='#f0f8ff', relief='solid', bd=1)
+        octave_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
         
-        # Label
-        octave_label = tk.Label(octave_frame, text="Add Octave to All Notes", 
-                              font=('Segoe UI', 9, 'bold'),
-                              bg='#f8f9fa', fg='#2c3e50')
-        octave_label.pack(anchor='w')
+        # Header con pulsante di attivazione
+        octave_header = tk.Frame(octave_frame, bg='#f0f8ff')
+        octave_header.pack(fill='x', padx=5, pady=3)
         
-        # Controlli ottava
-        octave_controls = tk.Frame(octave_frame, bg='#f8f9fa')
-        octave_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        # Pulsante di attivazione octave (come loop/reverse)
+        self.octave_btn = tk.Button(octave_header, text="Octave", 
+                                  font=('Segoe UI', 8, 'bold'),
+                                  bg='#95a5a6', fg='white',
+                                  command=self.toggle_octave,
+                                  width=8, height=1,
+                                  relief='flat', bd=0,
+                                  cursor='hand2',
+                                  activebackground='#7f8c8d',
+                                  activeforeground='white')
+        self.octave_btn.pack(side='left')
+        
+        # Controlli ottava compatti
+        octave_controls = tk.Frame(octave_frame, bg='#f0f8ff')
+        octave_controls.pack(fill='x', padx=5, pady=(0, 5))
         
         # Pulsanti freccia per ottava
         octave_down = tk.Button(octave_controls, text="▼", 
-                              font=('Segoe UI', 8, 'bold'),
+                              font=('Segoe UI', 7, 'bold'),
                               bg='#9b59b6', fg='white',
                               command=self.decrease_octave_add,
-                              width=3, height=1,
+                              width=2, height=1,
                               relief='flat', bd=0,
                               cursor='hand2',
                               activebackground='#8e44ad',
                               activeforeground='white')
-        octave_down.pack(side='left', padx=(0, 2))
+        octave_down.pack(side='left', padx=(0, 1))
         
         self.octave_add_label = tk.Label(octave_controls, text="0", 
-                                       font=('Segoe UI', 10, 'bold'), 
+                                       font=('Segoe UI', 8, 'bold'), 
                                        bg='#9b59b6', fg='white',
-                                       width=3, relief='flat')
-        self.octave_add_label.pack(side='left', padx=(2, 2))
+                                       width=4, relief='flat')
+        self.octave_add_label.pack(side='left', padx=(1, 1))
         
         octave_up = tk.Button(octave_controls, text="▲", 
-                            font=('Segoe UI', 8, 'bold'),
+                            font=('Segoe UI', 7, 'bold'),
                             bg='#9b59b6', fg='white',
                             command=self.increase_octave_add,
-                            width=3, height=1,
+                            width=2, height=1,
                             relief='flat', bd=0,
                             cursor='hand2',
                             activebackground='#8e44ad',
                             activeforeground='white')
-        octave_up.pack(side='left', padx=(2, 0))
+        octave_up.pack(side='left', padx=(1, 0))
         
         # Update label when value changes
         def update_octave_add_value(*_):
@@ -702,161 +837,256 @@ class CreativeChordWindow:
             self.octave_add_label.config(text=f"{val:+d}")
         self.octave_add_var.trace('w', update_octave_add_value)
     
-    def create_velocity_controls(self, parent):
-        """Crea i controlli per la curva di velocità"""
-        velocity_frame = tk.Frame(parent, bg='#f8f9fa')
-        velocity_frame.pack(fill='x', pady=(0, 8))
+    def create_velocity_controls_compact(self, parent):
+        """Crea i controlli per la curva di velocità compatti"""
+        # Sottoriquadro colorato per Velocity
+        velocity_frame = tk.Frame(parent, bg='#f0fff0', relief='solid', bd=1)
+        velocity_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
         
-        # Label
-        velocity_label = tk.Label(velocity_frame, text="Velocity Curve", 
-                                font=('Segoe UI', 9, 'bold'),
-                                bg='#f8f9fa', fg='#2c3e50')
-        velocity_label.pack(anchor='w')
+        # Header con pulsante di attivazione
+        velocity_header = tk.Frame(velocity_frame, bg='#f0fff0')
+        velocity_header.pack(fill='x', padx=5, pady=3)
         
-        # Controlli velocità
-        velocity_controls = tk.Frame(velocity_frame, bg='#f8f9fa')
-        velocity_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        # Pulsante di attivazione velocity (come loop/reverse)
+        self.velocity_btn = tk.Button(velocity_header, text="Velocity", 
+                                    font=('Segoe UI', 8, 'bold'),
+                                    bg='#95a5a6', fg='white',
+                                    command=self.toggle_velocity,
+                                    width=8, height=1,
+                                    relief='flat', bd=0,
+                                    cursor='hand2',
+                                    activebackground='#7f8c8d',
+                                    activeforeground='white')
+        self.velocity_btn.pack(side='left')
+        
+        # Controlli velocità compatti
+        velocity_controls = tk.Frame(velocity_frame, bg='#f0fff0')
+        velocity_controls.pack(fill='x', padx=5, pady=(0, 5))
         
         # Tipo di curva
-        curve_frame = tk.Frame(velocity_controls, bg='#f8f9fa')
-        curve_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        curve_frame = tk.Frame(velocity_controls, bg='#f0fff0')
+        curve_frame.pack(side='left', fill='x', expand=True, padx=(0, 3))
         
-        curve_label = tk.Label(curve_frame, text="Type", font=('Segoe UI', 8), 
-                             bg='#f8f9fa', fg='#7f8c8d')
-        curve_label.pack(anchor='w')
+        curve_label = tk.Label(curve_frame, text="Type", font=('Segoe UI', 7), 
+                             bg='#f0fff0', fg='#7f8c8d')
+        curve_label.pack(anchor='center')
         
         curve_dropdown = ttk.Combobox(curve_frame, 
                                     textvariable=self.velocity_curve_var,
-                                    values=["linear", "exponential", "logarithmic", "sine", "random"],
-                                    state="readonly", width=12, font=('Segoe UI', 8))
+                                    values=["linear", "exp", "log", "sine", "random"],
+                                    state="readonly", width=8, font=('Segoe UI', 7))
         curve_dropdown.pack(fill='x')
         curve_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
         
-        # Intensità
-        intensity_frame = tk.Frame(velocity_controls, bg='#f8f9fa')
-        intensity_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        # Intensità - knob style
+        intensity_frame = tk.Frame(velocity_controls, bg='#f0fff0')
+        intensity_frame.pack(side='left', fill='x', expand=True, padx=(3, 0))
         
-        intensity_label = tk.Label(intensity_frame, text="Intensity", font=('Segoe UI', 8), 
-                                 bg='#f8f9fa', fg='#7f8c8d')
-        intensity_label.pack(anchor='w')
+        intensity_label = tk.Label(intensity_frame, text="Intensity", font=('Segoe UI', 7), 
+                                 bg='#f0fff0', fg='#7f8c8d')
+        intensity_label.pack(anchor='center')
         
-        intensity_scale = tk.Scale(intensity_frame, from_=0.1, to=2.0, resolution=0.1,
-                                 variable=self.velocity_intensity_var, orient='horizontal',
-                                 length=80, showvalue=0, bg='#f8f9fa',
-                                 command=self.on_effect_change)
-        intensity_scale.pack(fill='x')
+        # Knob per intensità (0.1-2.0)
+        intensity_knob_frame = tk.Frame(intensity_frame, bg='#f0fff0')
+        intensity_knob_frame.pack(fill='x')
         
-        intensity_value = tk.Label(intensity_frame, text="1.0", font=('Segoe UI', 8), 
-                                 bg='#f8f9fa', fg='#2c3e50')
-        intensity_value.pack(anchor='w')
+        intensity_down = tk.Button(intensity_knob_frame, text="◀", 
+                                 font=('Segoe UI', 6, 'bold'),
+                                 bg='#27ae60', fg='white',
+                                 command=self.decrease_velocity_intensity,
+                                 width=2, height=1,
+                                 relief='flat', bd=0,
+                                 cursor='hand2',
+                                 activebackground='#229954',
+                                 activeforeground='white')
+        intensity_down.pack(side='left', padx=(0, 1))
+        
+        intensity_value = tk.Label(intensity_knob_frame, text="1.0", 
+                                 font=('Segoe UI', 7, 'bold'), 
+                                 bg='#27ae60', fg='white',
+                                 width=6, relief='flat')
+        intensity_value.pack(side='left', padx=(1, 1))
+        
+        intensity_up = tk.Button(intensity_knob_frame, text="▶", 
+                               font=('Segoe UI', 6, 'bold'),
+                               bg='#27ae60', fg='white',
+                               command=self.increase_velocity_intensity,
+                               width=2, height=1,
+                               relief='flat', bd=0,
+                               cursor='hand2',
+                               activebackground='#229954',
+                               activeforeground='white')
+        intensity_up.pack(side='left', padx=(1, 0))
         
         # Update intensity label
         def update_intensity(*_):
             intensity_value.config(text=f"{self.velocity_intensity_var.get():.1f}")
         self.velocity_intensity_var.trace('w', update_intensity)
     
-    def create_accent_controls(self, parent):
-        """Crea i controlli per i pattern di accento"""
-        accent_frame = tk.Frame(parent, bg='#f8f9fa')
-        accent_frame.pack(fill='x', pady=(0, 8))
+    def create_accent_controls_compact(self, parent):
+        """Crea i controlli per i pattern di accento compatti"""
+        # Sottoriquadro colorato per Accent
+        accent_frame = tk.Frame(parent, bg='#fff5f5', relief='solid', bd=1)
+        accent_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
         
-        # Checkbox per abilitare accenti
-        accent_check = tk.Checkbutton(accent_frame, text="Accent Patterns", 
-                                    variable=self.accent_enabled_var,
-                                    font=('Segoe UI', 9, 'bold'),
-                                    bg='#f8f9fa', fg='#2c3e50',
-                                    command=self.on_effect_change)
-        accent_check.pack(anchor='w')
+        # Header con pulsante di attivazione
+        accent_header = tk.Frame(accent_frame, bg='#fff5f5')
+        accent_header.pack(fill='x', padx=5, pady=3)
         
-        # Controlli accento (solo se abilitato)
-        accent_controls = tk.Frame(accent_frame, bg='#f8f9fa')
-        accent_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        # Pulsante di attivazione accent (come loop/reverse)
+        self.accent_btn = tk.Button(accent_header, text="Accent", 
+                                  font=('Segoe UI', 8, 'bold'),
+                                  bg='#95a5a6', fg='white',
+                                  command=self.toggle_accent,
+                                  width=8, height=1,
+                                  relief='flat', bd=0,
+                                  cursor='hand2',
+                                  activebackground='#7f8c8d',
+                                  activeforeground='white')
+        self.accent_btn.pack(side='left')
+        
+        # Controlli accento compatti
+        accent_controls = tk.Frame(accent_frame, bg='#fff5f5')
+        accent_controls.pack(fill='x', padx=5, pady=(0, 5))
         
         # Pattern di accento
-        pattern_frame = tk.Frame(accent_controls, bg='#f8f9fa')
-        pattern_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        pattern_frame = tk.Frame(accent_controls, bg='#fff5f5')
+        pattern_frame.pack(side='left', fill='x', expand=True, padx=(0, 3))
         
-        pattern_label = tk.Label(pattern_frame, text="Pattern", font=('Segoe UI', 8), 
-                               bg='#f8f9fa', fg='#7f8c8d')
-        pattern_label.pack(anchor='w')
+        pattern_label = tk.Label(pattern_frame, text="Pattern", font=('Segoe UI', 7), 
+                               bg='#fff5f5', fg='#7f8c8d')
+        pattern_label.pack(anchor='center')
         
         pattern_dropdown = ttk.Combobox(pattern_frame, 
                                       textvariable=self.accent_pattern_var,
                                       values=["every_beat", "every_other", "random", "crescendo", "diminuendo"],
-                                      state="readonly", width=12, font=('Segoe UI', 8))
+                                      state="readonly", width=8, font=('Segoe UI', 7))
         pattern_dropdown.pack(fill='x')
         pattern_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
         
-        # Forza accento
-        strength_frame = tk.Frame(accent_controls, bg='#f8f9fa')
-        strength_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        # Forza accento - knob style
+        strength_frame = tk.Frame(accent_controls, bg='#fff5f5')
+        strength_frame.pack(side='left', fill='x', expand=True, padx=(3, 0))
         
-        strength_label = tk.Label(strength_frame, text="Strength", font=('Segoe UI', 8), 
-                                bg='#f8f9fa', fg='#7f8c8d')
-        strength_label.pack(anchor='w')
+        strength_label = tk.Label(strength_frame, text="Strength", font=('Segoe UI', 7), 
+                                bg='#fff5f5', fg='#7f8c8d')
+        strength_label.pack(anchor='center')
         
-        strength_scale = tk.Scale(strength_frame, from_=0.1, to=1.0, resolution=0.1,
-                                variable=self.accent_strength_var, orient='horizontal',
-                                length=80, showvalue=0, bg='#f8f9fa',
-                                command=self.on_effect_change)
-        strength_scale.pack(fill='x')
+        # Knob per strength (0.1-1.0)
+        strength_knob_frame = tk.Frame(strength_frame, bg='#fff5f5')
+        strength_knob_frame.pack(fill='x')
         
-        strength_value = tk.Label(strength_frame, text="0.5", font=('Segoe UI', 8), 
-                                bg='#f8f9fa', fg='#2c3e50')
-        strength_value.pack(anchor='w')
+        strength_down = tk.Button(strength_knob_frame, text="◀", 
+                                font=('Segoe UI', 6, 'bold'),
+                                bg='#e74c3c', fg='white',
+                                command=self.decrease_accent_strength,
+                                width=2, height=1,
+                                relief='flat', bd=0,
+                                cursor='hand2',
+                                activebackground='#c0392b',
+                                activeforeground='white')
+        strength_down.pack(side='left', padx=(0, 1))
+        
+        strength_value = tk.Label(strength_knob_frame, text="0.5", 
+                                font=('Segoe UI', 7, 'bold'), 
+                                bg='#e74c3c', fg='white',
+                                width=6, relief='flat')
+        strength_value.pack(side='left', padx=(1, 1))
+        
+        strength_up = tk.Button(strength_knob_frame, text="▶", 
+                              font=('Segoe UI', 6, 'bold'),
+                              bg='#e74c3c', fg='white',
+                              command=self.increase_accent_strength,
+                              width=2, height=1,
+                              relief='flat', bd=0,
+                              cursor='hand2',
+                              activebackground='#c0392b',
+                              activeforeground='white')
+        strength_up.pack(side='left', padx=(1, 0))
         
         # Update strength label
         def update_strength(*_):
             strength_value.config(text=f"{self.accent_strength_var.get():.1f}")
         self.accent_strength_var.trace('w', update_strength)
     
-    def create_repeater_controls(self, parent):
-        """Crea i controlli per il ripetitore di note"""
-        repeater_frame = tk.Frame(parent, bg='#f8f9fa')
-        repeater_frame.pack(fill='x', pady=(0, 8))
+    def create_repeater_controls_compact(self, parent):
+        """Crea i controlli per il ripetitore di note compatti"""
+        # Sottoriquadro colorato per Repeater
+        repeater_frame = tk.Frame(parent, bg='#fff8e1', relief='solid', bd=1)
+        repeater_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
         
-        # Checkbox per abilitare repeater
-        repeater_check = tk.Checkbutton(repeater_frame, text="Note Repeater", 
-                                      variable=self.repeater_enabled_var,
-                                      font=('Segoe UI', 9, 'bold'),
-                                      bg='#f8f9fa', fg='#2c3e50',
-                                      command=self.on_effect_change)
-        repeater_check.pack(anchor='w')
+        # Header con pulsante di attivazione
+        repeater_header = tk.Frame(repeater_frame, bg='#fff8e1')
+        repeater_header.pack(fill='x', padx=5, pady=3)
         
-        # Controlli repeater (solo se abilitato)
-        repeater_controls = tk.Frame(repeater_frame, bg='#f8f9fa')
-        repeater_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        # Pulsante di attivazione repeater (come loop/reverse)
+        self.repeater_btn = tk.Button(repeater_header, text="Repeater", 
+                                    font=('Segoe UI', 8, 'bold'),
+                                    bg='#95a5a6', fg='white',
+                                    command=self.toggle_repeater,
+                                    width=8, height=1,
+                                    relief='flat', bd=0,
+                                    cursor='hand2',
+                                    activebackground='#7f8c8d',
+                                    activeforeground='white')
+        self.repeater_btn.pack(side='left')
         
-        # Numero di ripetizioni
-        count_frame = tk.Frame(repeater_controls, bg='#f8f9fa')
-        count_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        # Controlli repeater compatti
+        repeater_controls = tk.Frame(repeater_frame, bg='#fff8e1')
+        repeater_controls.pack(fill='x', padx=5, pady=(0, 5))
         
-        count_label = tk.Label(count_frame, text="Count", font=('Segoe UI', 8), 
-                             bg='#f8f9fa', fg='#7f8c8d')
-        count_label.pack(anchor='w')
+        # Numero di ripetizioni - arrow buttons
+        count_frame = tk.Frame(repeater_controls, bg='#fff8e1')
+        count_frame.pack(side='left', fill='x', expand=True, padx=(0, 3))
         
-        count_scale = tk.Scale(count_frame, from_=1, to=8, resolution=1,
-                             variable=self.repeat_count_var, orient='horizontal',
-                             length=80, showvalue=0, bg='#f8f9fa',
-                             command=self.on_effect_change)
-        count_scale.pack(fill='x')
+        count_label = tk.Label(count_frame, text="Count", font=('Segoe UI', 7), 
+                             bg='#fff8e1', fg='#7f8c8d')
+        count_label.pack(anchor='center')
         
-        count_value = tk.Label(count_frame, text="2", font=('Segoe UI', 8), 
-                             bg='#f8f9fa', fg='#2c3e50')
-        count_value.pack(anchor='w')
+        # Arrow buttons per count (1-8)
+        count_knob_frame = tk.Frame(count_frame, bg='#fff8e1')
+        count_knob_frame.pack(fill='x')
+        
+        count_down = tk.Button(count_knob_frame, text="◀", 
+                             font=('Segoe UI', 6, 'bold'),
+                             bg='#f39c12', fg='white',
+                             command=self.decrease_repeat_count,
+                             width=2, height=1,
+                             relief='flat', bd=0,
+                             cursor='hand2',
+                             activebackground='#e67e22',
+                             activeforeground='white')
+        count_down.pack(side='left', padx=(0, 1))
+        
+        count_value = tk.Label(count_knob_frame, text="2", 
+                             font=('Segoe UI', 7, 'bold'), 
+                             bg='#f39c12', fg='white',
+                             width=6, relief='flat')
+        count_value.pack(side='left', padx=(1, 1))
+        
+        count_up = tk.Button(count_knob_frame, text="▶", 
+                           font=('Segoe UI', 6, 'bold'),
+                           bg='#f39c12', fg='white',
+                           command=self.increase_repeat_count,
+                           width=2, height=1,
+                           relief='flat', bd=0,
+                           cursor='hand2',
+                           activebackground='#e67e22',
+                           activeforeground='white')
+        count_up.pack(side='left', padx=(1, 0))
         
         # Timing
-        timing_frame = tk.Frame(repeater_controls, bg='#f8f9fa')
-        timing_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        timing_frame = tk.Frame(repeater_controls, bg='#fff8e1')
+        timing_frame.pack(side='left', fill='x', expand=True, padx=(3, 0))
         
-        timing_label = tk.Label(timing_frame, text="Timing", font=('Segoe UI', 8), 
-                              bg='#f8f9fa', fg='#7f8c8d')
-        timing_label.pack(anchor='w')
+        timing_label = tk.Label(timing_frame, text="Timing", font=('Segoe UI', 7), 
+                              bg='#fff8e1', fg='#7f8c8d')
+        timing_label.pack(anchor='center')
         
         timing_dropdown = ttk.Combobox(timing_frame, 
                                      textvariable=self.repeat_timing_var,
                                      values=["immediate", "staccato", "legato", "swing"],
-                                     state="readonly", width=12, font=('Segoe UI', 8))
+                                     state="readonly", width=8, font=('Segoe UI', 7))
         timing_dropdown.pack(fill='x')
         timing_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
         
@@ -865,50 +1095,59 @@ class CreativeChordWindow:
             count_value.config(text=str(self.repeat_count_var.get()))
         self.repeat_count_var.trace('w', update_count)
     
-    def create_chord_gen_controls(self, parent):
-        """Crea i controlli per il generatore di accordi"""
-        chord_gen_frame = tk.Frame(parent, bg='#f8f9fa')
-        chord_gen_frame.pack(fill='x', pady=(0, 8))
+    def create_chord_gen_controls_compact(self, parent):
+        """Crea i controlli per il generatore di accordi compatti"""
+        # Sottoriquadro colorato per Chord Generator
+        chord_gen_frame = tk.Frame(parent, bg='#f3e5f5', relief='solid', bd=1)
+        chord_gen_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
         
-        # Checkbox per abilitare chord generator
-        chord_gen_check = tk.Checkbutton(chord_gen_frame, text="Chord Generator", 
-                                       variable=self.chord_gen_enabled_var,
-                                       font=('Segoe UI', 9, 'bold'),
-                                       bg='#f8f9fa', fg='#2c3e50',
-                                       command=self.on_effect_change)
-        chord_gen_check.pack(anchor='w')
+        # Header con pulsante di attivazione
+        chord_gen_header = tk.Frame(chord_gen_frame, bg='#f3e5f5')
+        chord_gen_header.pack(fill='x', padx=5, pady=3)
         
-        # Controlli chord generator (solo se abilitato)
-        chord_gen_controls = tk.Frame(chord_gen_frame, bg='#f8f9fa')
-        chord_gen_controls.pack(fill='x', padx=(20, 0), pady=(2, 0))
+        # Pulsante di attivazione chord generator (come loop/reverse)
+        self.chord_gen_btn = tk.Button(chord_gen_header, text="Chord Gen", 
+                                     font=('Segoe UI', 8, 'bold'),
+                                     bg='#95a5a6', fg='white',
+                                     command=self.toggle_chord_gen,
+                                     width=8, height=1,
+                                     relief='flat', bd=0,
+                                     cursor='hand2',
+                                     activebackground='#7f8c8d',
+                                     activeforeground='white')
+        self.chord_gen_btn.pack(side='left')
+        
+        # Controlli chord generator compatti
+        chord_gen_controls = tk.Frame(chord_gen_frame, bg='#f3e5f5')
+        chord_gen_controls.pack(fill='x', padx=5, pady=(0, 5))
         
         # Variazione accordo
-        variation_frame = tk.Frame(chord_gen_controls, bg='#f8f9fa')
-        variation_frame.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        variation_frame = tk.Frame(chord_gen_controls, bg='#f3e5f5')
+        variation_frame.pack(side='left', fill='x', expand=True, padx=(0, 3))
         
-        variation_label = tk.Label(variation_frame, text="Variation", font=('Segoe UI', 8), 
-                                 bg='#f8f9fa', fg='#7f8c8d')
-        variation_label.pack(anchor='w')
+        variation_label = tk.Label(variation_frame, text="Variation", font=('Segoe UI', 7), 
+                                 bg='#f3e5f5', fg='#7f8c8d')
+        variation_label.pack(anchor='center')
         
         variation_dropdown = ttk.Combobox(variation_frame, 
                                         textvariable=self.chord_variation_var,
                                         values=["inversion", "extension", "substitution", "voicing"],
-                                        state="readonly", width=12, font=('Segoe UI', 8))
+                                        state="readonly", width=8, font=('Segoe UI', 7))
         variation_dropdown.pack(fill='x')
         variation_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
         
         # Voicing
-        voicing_frame = tk.Frame(chord_gen_controls, bg='#f8f9fa')
-        voicing_frame.pack(side='left', fill='x', expand=True, padx=(5, 0))
+        voicing_frame = tk.Frame(chord_gen_controls, bg='#f3e5f5')
+        voicing_frame.pack(side='left', fill='x', expand=True, padx=(3, 0))
         
-        voicing_label = tk.Label(voicing_frame, text="Voicing", font=('Segoe UI', 8), 
-                               bg='#f8f9fa', fg='#7f8c8d')
-        voicing_label.pack(anchor='w')
+        voicing_label = tk.Label(voicing_frame, text="Voicing", font=('Segoe UI', 7), 
+                               bg='#f3e5f5', fg='#7f8c8d')
+        voicing_label.pack(anchor='center')
         
         voicing_dropdown = ttk.Combobox(voicing_frame, 
                                       textvariable=self.voicing_var,
                                       values=["close", "open", "drop2", "drop3", "spread"],
-                                      state="readonly", width=12, font=('Segoe UI', 8))
+                                      state="readonly", width=8, font=('Segoe UI', 7))
         voicing_dropdown.pack(fill='x')
         voicing_dropdown.bind('<<ComboboxSelected>>', self.on_effect_change)
     
@@ -1328,6 +1567,136 @@ class CreativeChordWindow:
         del event  # Ignora il parametro event non utilizzato
         self.log_message("MIDI effects changed")
         self.update_parameters_realtime()
+    
+    # Metodi per i controlli knob compatti
+    def increase_delay_time(self):
+        """Aumenta il tempo di delay"""
+        current = self.delay_time_var.get()
+        if current < 2.0:
+            self.delay_time_var.set(min(2.0, current + 0.1))
+            self.on_effect_change()
+    
+    def decrease_delay_time(self):
+        """Diminuisce il tempo di delay"""
+        current = self.delay_time_var.get()
+        if current > 0.1:
+            self.delay_time_var.set(max(0.1, current - 0.1))
+            self.on_effect_change()
+    
+    def increase_delay_feedback(self):
+        """Aumenta il feedback del delay"""
+        current = self.delay_feedback_var.get()
+        if current < 0.9:
+            self.delay_feedback_var.set(min(0.9, current + 0.1))
+            self.on_effect_change()
+    
+    def decrease_delay_feedback(self):
+        """Diminuisce il feedback del delay"""
+        current = self.delay_feedback_var.get()
+        if current > 0.0:
+            self.delay_feedback_var.set(max(0.0, current - 0.1))
+            self.on_effect_change()
+    
+    def increase_velocity_intensity(self):
+        """Aumenta l'intensità della velocità"""
+        current = self.velocity_intensity_var.get()
+        if current < 2.0:
+            self.velocity_intensity_var.set(min(2.0, current + 0.1))
+            self.on_effect_change()
+    
+    def decrease_velocity_intensity(self):
+        """Diminuisce l'intensità della velocità"""
+        current = self.velocity_intensity_var.get()
+        if current > 0.1:
+            self.velocity_intensity_var.set(max(0.1, current - 0.1))
+            self.on_effect_change()
+    
+    def increase_accent_strength(self):
+        """Aumenta la forza dell'accento"""
+        current = self.accent_strength_var.get()
+        if current < 1.0:
+            self.accent_strength_var.set(min(1.0, current + 0.1))
+            self.on_effect_change()
+    
+    def decrease_accent_strength(self):
+        """Diminuisce la forza dell'accento"""
+        current = self.accent_strength_var.get()
+        if current > 0.1:
+            self.accent_strength_var.set(max(0.1, current - 0.1))
+            self.on_effect_change()
+    
+    def increase_repeat_count(self):
+        """Aumenta il numero di ripetizioni"""
+        current = self.repeat_count_var.get()
+        if current < 8:
+            self.repeat_count_var.set(current + 1)
+            self.on_effect_change()
+    
+    def decrease_repeat_count(self):
+        """Diminuisce il numero di ripetizioni"""
+        current = self.repeat_count_var.get()
+        if current > 1:
+            self.repeat_count_var.set(current - 1)
+            self.on_effect_change()
+    
+    # Metodi toggle per i pulsanti di attivazione effetti
+    def toggle_delay(self):
+        """Toggle del delay"""
+        self.delay_enabled_var.set(not self.delay_enabled_var.get())
+        if self.delay_enabled_var.get():
+            self.delay_btn.config(bg='#3498db', fg='white')
+        else:
+            self.delay_btn.config(bg='#95a5a6', fg='white')
+        self.on_effect_change()
+    
+    def toggle_octave(self):
+        """Toggle dell'ottava"""
+        # Toggle tra 0 e 1 per l'ottava
+        if self.octave_add_var.get() == 0:
+            self.octave_add_var.set(1)
+            self.octave_btn.config(bg='#9b59b6', fg='white')
+        else:
+            self.octave_add_var.set(0)
+            self.octave_btn.config(bg='#95a5a6', fg='white')
+        self.on_effect_change()
+    
+    def toggle_velocity(self):
+        """Toggle della velocity curve"""
+        # Toggle tra linear e exponential per la velocity
+        if self.velocity_curve_var.get() == "linear":
+            self.velocity_curve_var.set("exponential")
+            self.velocity_btn.config(bg='#27ae60', fg='white')
+        else:
+            self.velocity_curve_var.set("linear")
+            self.velocity_btn.config(bg='#95a5a6', fg='white')
+        self.on_effect_change()
+    
+    def toggle_accent(self):
+        """Toggle dell'accento"""
+        self.accent_enabled_var.set(not self.accent_enabled_var.get())
+        if self.accent_enabled_var.get():
+            self.accent_btn.config(bg='#e74c3c', fg='white')
+        else:
+            self.accent_btn.config(bg='#95a5a6', fg='white')
+        self.on_effect_change()
+    
+    def toggle_repeater(self):
+        """Toggle del repeater"""
+        self.repeater_enabled_var.set(not self.repeater_enabled_var.get())
+        if self.repeater_enabled_var.get():
+            self.repeater_btn.config(bg='#f39c12', fg='white')
+        else:
+            self.repeater_btn.config(bg='#95a5a6', fg='white')
+        self.on_effect_change()
+    
+    def toggle_chord_gen(self):
+        """Toggle del chord generator"""
+        self.chord_gen_enabled_var.set(not self.chord_gen_enabled_var.get())
+        if self.chord_gen_enabled_var.get():
+            self.chord_gen_btn.config(bg='#9b59b6', fg='white')
+        else:
+            self.chord_gen_btn.config(bg='#95a5a6', fg='white')
+        self.on_effect_change()
     
     
     def update_parameters_realtime(self):
