@@ -9,7 +9,7 @@ import threading
 from typing import List, Callable, Optional
 from dataclasses import dataclass
 from enum import Enum
-from chord_generator import Note, SoundCell, MIDIScaleGenerator
+from chord_generator import Note, SoundCell, MIDIScaleGenerator, MusicalFigure, musical_figure_to_seconds
 
 
 class PatternType(Enum):
@@ -92,7 +92,6 @@ class PatternEngine:
         self.current_delay_feedback = 0.3
         self.current_delay_mix = 0.5
         self.current_delay_type = "Standard"
-        self.current_delay_velocity = 0.8
         self.current_delay_repeats = 3
         self.current_octave_add = 0
         self.current_velocity_curve = "linear"
@@ -113,7 +112,7 @@ class PatternEngine:
                          playback_speed: float = None, bpm: int = None, pause_duration: float = None,
                          # MIDI Effects
                          delay_enabled: bool = None, delay_time: float = None, delay_feedback: float = None,
-                         delay_mix: float = None, delay_type: str = None, delay_velocity: float = None, delay_repeats: int = None,
+                         delay_mix: float = None, delay_type: str = None, delay_repeats: int = None,
                          octave_add: int = None, velocity_curve: str = None, velocity_intensity: float = None,
                          accent_enabled: bool = None, accent_strength: float = None, accent_pattern: str = None,
                          repeater_enabled: bool = None, repeat_count: int = None, repeat_timing: str = None,
@@ -152,8 +151,6 @@ class PatternEngine:
                 self.current_delay_mix = delay_mix
             if delay_type is not None:
                 self.current_delay_type = delay_type
-            if delay_velocity is not None:
-                self.current_delay_velocity = delay_velocity
             if delay_repeats is not None:
                 self.current_delay_repeats = delay_repeats
             if octave_add is not None:
@@ -227,7 +224,6 @@ class PatternEngine:
                 'delay_feedback': self.current_delay_feedback,
                 'delay_mix': self.current_delay_mix,
                 'delay_type': self.current_delay_type,
-                'delay_velocity': self.current_delay_velocity,
                 'delay_repeats': self.current_delay_repeats,
                 'octave_add': self.current_octave_add,
                 'velocity_curve': self.current_velocity_curve,
@@ -868,7 +864,7 @@ class PatternEngine:
                     bpm: int = 120, pause_duration: float = 0.0, callback: Optional[Callable] = None,
                     # MIDI Effects
                     delay_enabled: bool = False, delay_time: float = 0.25, delay_feedback: float = 0.3,
-                    delay_mix: float = 0.5, delay_type: str = "quarter", delay_velocity: float = 0.7, delay_repeats: int = 3,
+                    delay_mix: float = 0.5, delay_type: str = "quarter", delay_repeats: int = 3,
                     octave_add: int = 0, velocity_curve: str = "linear", velocity_intensity: float = 1.0,
                     accent_enabled: bool = False, accent_strength: float = 0.5, accent_pattern: str = "every_beat",
                     repeater_enabled: bool = False, repeat_count: int = 2, repeat_timing: str = "immediate",
@@ -879,7 +875,7 @@ class PatternEngine:
         
         # Inizializza i parametri correnti
         self.update_parameters(sound_cell, pattern_type, octave, base_duration, loop, reverse, duration_octaves, playback_speed, bpm, pause_duration,
-                              delay_enabled, delay_time, delay_feedback, delay_mix, delay_type, delay_velocity, delay_repeats,
+                              delay_enabled, delay_time, delay_feedback, delay_mix, delay_type, delay_repeats,
                               octave_add, velocity_curve, velocity_intensity, accent_enabled, accent_strength, accent_pattern, 
                               repeater_enabled, repeat_count, repeat_timing, chord_gen_enabled, chord_variation, voicing)
         
@@ -1031,7 +1027,6 @@ class PatternEngine:
         feedback = params['delay_feedback']
         mix = params['delay_mix']
         delay_type = params['delay_type']
-        delay_velocity = params['delay_velocity']
         try:
             max_repeats = int(params['delay_repeats'])  # Assicura che sia un intero
         except (ValueError, TypeError):
@@ -1050,7 +1045,7 @@ class PatternEngine:
         
         for i in range(max_repeats):
             # Calcola la velocità dell'eco
-            current_velocity = int(velocity * delay_velocity * (feedback ** (i + 1)))
+            current_velocity = int(velocity * (feedback ** (i + 1)))
             if current_velocity < 10:  # Soglia minima
                 break
             
@@ -1187,13 +1182,18 @@ class PatternEngine:
 
             # Gestione del segnale WET (delay) in background
             if params['delay_enabled'] and params['delay_mix'] > 0:
-                self._play_delay_echoes_async(midi_note, velocity, duration, params)
+                # La velocity degli echi è ora una frazione del mix
+                echo_base_velocity = int(velocity * params['delay_mix'])
+                self._play_delay_echoes_async(midi_note, echo_base_velocity, duration, params)
 
             # Gestione del segnale DRY (nota originale) - SINCRONO
-            if params['delay_mix'] < 1.0:
+            # La velocity del segnale dry è inversamente proporzionale al mix
+            dry_velocity = int(velocity * (1.0 - params['delay_mix']))
+            
+            if dry_velocity > 0:
                 # Se il repeater è attivo, la nota dry viene "ripetuta" in modo sincrono
                 if params['repeater_enabled']:
-                    repeated_notes = self._apply_repeater_effect(midi_note, velocity, duration)
+                    repeated_notes = self._apply_repeater_effect(midi_note, dry_velocity, duration)
                     for r_note, r_vel, r_dur in repeated_notes:
                         if self.stop_requested: break
                         self.midi_output.send_note_on(r_note, r_vel)
@@ -1202,10 +1202,14 @@ class PatternEngine:
                             self.midi_output.send_note_off(r_note)
                 else:
                     # Altrimenti, suona la nota singola in modo sincrono
-                    self.midi_output.send_note_on(midi_note, velocity)
+                    self.midi_output.send_note_on(midi_note, dry_velocity)
                     time.sleep(duration)
                     if not self.stop_requested:
                         self.midi_output.send_note_off(midi_note)
+            else:
+                # Se il segnale dry è a zero, attendi comunque la durata della nota
+                # per mantenere il timing corretto del pattern.
+                time.sleep(duration)
 
         except (OSError, RuntimeError, AttributeError) as e:
             print(f"Errore nell'invio MIDI: {e}")
@@ -1215,7 +1219,6 @@ class PatternEngine:
         def delay_worker():
             delay_time = params['delay_time']
             feedback = params['delay_feedback']
-            delay_velocity_factor = params['delay_velocity']
             max_repeats = params['delay_repeats']
 
             current_delay = delay_time
@@ -1223,7 +1226,7 @@ class PatternEngine:
                 time.sleep(current_delay)
                 if self.stop_requested: return
 
-                echo_velocity = int(velocity * delay_velocity_factor * (feedback ** (i + 1)))
+                echo_velocity = int(velocity * (feedback ** (i + 1)))
                 if echo_velocity < 10: break
 
                 echo_duration = duration * (0.8 ** (i + 1))

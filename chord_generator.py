@@ -42,6 +42,38 @@ class Note(Enum):
     B = 11
 
 
+class MusicalFigure(Enum):
+    """Enum per le figure musicali del delay"""
+    WHOLE = 4.0      # 4 beats
+    HALF = 2.0        # 2 beats
+    QUARTER = 1.0     # 1 beat
+    EIGHTH = 0.5      # 0.5 beats
+    SIXTEENTH = 0.25  # 0.25 beats
+    THIRTY_SECOND = 0.125  # 0.125 beats
+    DOTTED_QUARTER = 1.5   # 1.5 beats
+    DOTTED_EIGHTH = 0.75   # 0.75 beats
+    TRIPLET_QUARTER = 0.6667  # 2/3 beats
+    TRIPLET_EIGHTH = 0.3333   # 1/3 beats
+
+
+def musical_figure_to_seconds(figure: MusicalFigure, bpm: int = 120) -> float:
+    """
+    Converte una figura musicale in secondi basandosi sul BPM.
+    
+    Args:
+        figure: La figura musicale (es. MusicalFigure.QUARTER)
+        bpm: Battiti per minuto (default: 120)
+    
+    Returns:
+        Durata in secondi della figura musicale
+    """
+    # Calcola la durata di un beat in secondi
+    beat_duration = 60.0 / bpm
+    
+    # Moltiplica per il numero di beats della figura
+    return figure.value * beat_duration
+
+
 @dataclass
 class Chord:
     """Rappresenta un accordo con le sue note"""

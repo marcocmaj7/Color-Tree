@@ -4,9 +4,8 @@ Finestra per la riproduzione creativa di accordi con pattern
 
 import tkinter as tk
 from tkinter import ttk
-import math
 from pattern_engine import PatternEngine, PatternType
-from chord_generator import SoundCell, MIDIScaleGenerator
+from chord_generator import SoundCell, MIDIScaleGenerator, MusicalFigure, musical_figure_to_seconds
 
 
 
@@ -41,11 +40,10 @@ class CreativeChordWindow:
         
         # Variabili per gli effetti MIDI
         self.delay_enabled_var = tk.BooleanVar(value=False)
-        self.delay_time_var = tk.DoubleVar(value=0.25)
+        self.delay_figure_var = tk.StringVar(value="Quarter")  # Figura musicale per delay
         self.delay_feedback_var = tk.DoubleVar(value=0.3)
         self.delay_mix_var = tk.DoubleVar(value=0.5)  # Mix dry/wet
         self.delay_type_var = tk.StringVar(value="Standard")  # Tipo di delay
-        self.delay_velocity_var = tk.DoubleVar(value=0.8)  # Velocità echi
         self.delay_repeats_var = tk.IntVar(value=3)  # Numero ripetizioni
         self.octave_add_var = tk.IntVar(value=0)
         self.velocity_curve_var = tk.StringVar(value="linear")
@@ -86,6 +84,10 @@ class CreativeChordWindow:
         self.accent_btn = None
         self.repeater_btn = None
         self.chord_gen_btn = None
+        
+        # Widget per i controlli delay
+        self.delay_figure_combo = None
+        self.type_combo = None
         
         # Dizionario per tracciare i pulsanti pattern per l'evidenziazione
         self.pattern_buttons = {}
@@ -735,9 +737,25 @@ class CreativeChordWindow:
             update_label() # Set initial value
 
         _create_slider(delay_controls, "Mix", self.delay_mix_var, 0.0, 1.0)
-        _create_slider(delay_controls, "Time", self.delay_time_var, 0.1, 2.0)
         _create_slider(delay_controls, "Feedback", self.delay_feedback_var, 0.0, 0.95)
-        _create_slider(delay_controls, "Velocity", self.delay_velocity_var, 0.1, 1.0)
+        
+        # Figura musicale per delay (dropdown invece di slider)
+        figure_frame = tk.Frame(delay_controls, bg='#e8f4fd')
+        figure_frame.pack(fill='x', expand=True, pady=1)
+        
+        figure_label = tk.Label(figure_frame, text="Figure", font=('Segoe UI', 8), 
+                               bg='#e8f4fd', fg='#2c3e50', width=8, anchor='w')
+        figure_label.pack(side='left')
+        
+        # Dropdown per le figure musicali
+        figure_options = ["Whole", "Half", "Quarter", "Eighth", "Sixteenth", "Thirty-Second", 
+                         "Dotted Quarter", "Dotted Eighth", "Triplet Quarter", "Triplet Eighth"]
+        self.delay_figure_combo = ttk.Combobox(figure_frame, textvariable=self.delay_figure_var,
+                                             values=figure_options, state="readonly", 
+                                             font=('Segoe UI', 8), width=12)
+        self.delay_figure_combo.pack(side='right', fill='x', expand=True, padx=(5,0))
+        self.delay_figure_combo.bind('<<ComboboxSelected>>', self.on_effect_change)
+        
         _create_slider(delay_controls, "Repeats", self.delay_repeats_var, 1, 8, is_int=True)
 
         # Tipo di delay (dropdown)
@@ -756,7 +774,7 @@ class CreativeChordWindow:
         self.type_combo.bind('<<ComboboxSelected>>', self.on_type_change)
         
         # Aggiungi un binding per il click diretto sul Combobox
-        self.type_combo.bind('<Button-1>', self.on_combobox_click)
+        self.type_combo.bind('<Button-1>', lambda e: self.on_combobox_click())
     
     def create_octave_controls_compact(self, parent, row, col):
         """Crea i controlli per l'aggiunta di ottave compatti"""
@@ -1557,19 +1575,6 @@ class CreativeChordWindow:
         del event  # Ignora il parametro event non utilizzato
         self.on_effect_change()
     
-    def increase_delay_time(self):
-        """Aumenta il tempo di delay"""
-        current = self.delay_time_var.get()
-        if current < 2.0:
-            self.delay_time_var.set(min(2.0, current + 0.1))
-            self.on_effect_change()
-    
-    def decrease_delay_time(self):
-        """Diminuisce il tempo di delay"""
-        current = self.delay_time_var.get()
-        if current > 0.1:
-            self.delay_time_var.set(max(0.1, current - 0.1))
-            self.on_effect_change()
     
     def increase_delay_feedback(self):
         """Aumenta il feedback del delay"""
@@ -1673,7 +1678,7 @@ class CreativeChordWindow:
             # Mostra il menu
             popup_menu.tk_popup(button_x, button_y)
             
-        except Exception as e:
+        except (tk.TclError, AttributeError, RuntimeError) as e:
             print(f"Errore nell'apertura del menu: {e}")
     
     def select_delay_type(self, delay_type):
@@ -1681,15 +1686,15 @@ class CreativeChordWindow:
         try:
             self.delay_type_var.set(delay_type)
             self.on_type_change()
-        except Exception as e:
+        except (tk.TclError, AttributeError, RuntimeError) as e:
             print(f"Errore nella selezione del tipo: {e}")
     
-    def on_combobox_click(self, event):
+    def on_combobox_click(self):
         """Gestisce il click diretto sul Combobox"""
         try:
             # Forza l'apertura del dropdown
             self.type_combo.event_generate('<Down>')
-        except Exception as e:
+        except (tk.TclError, AttributeError, RuntimeError) as e:
             print(f"Errore nell'apertura del Combobox: {e}")
     
     def toggle_octave(self):
@@ -1763,11 +1768,10 @@ class CreativeChordWindow:
                     pause_duration=self.get_pause_duration_seconds(),
                     # MIDI Effects
                     delay_enabled=self.delay_enabled_var.get(),
-                    delay_time=self.delay_time_var.get(),
+                    delay_time=self.get_delay_figure_seconds(),
                     delay_feedback=self.delay_feedback_var.get(),
                     delay_mix=self.delay_mix_var.get(),
                     delay_type=self.delay_type_var.get(),
-                    delay_velocity=self.delay_velocity_var.get(),
                     delay_repeats=self.delay_repeats_var.get(),
                     octave_add=self.octave_add_var.get(),
                     velocity_curve=self.velocity_curve_var.get(),
@@ -1860,6 +1864,29 @@ class CreativeChordWindow:
         }
         return pause_duration_map.get(self.pause_duration_var.get(), 0.0)
     
+    def get_delay_figure_seconds(self):
+        """Converte la figura musicale del delay in secondi basandosi sul BPM"""
+        figure_map = {
+            "Whole": MusicalFigure.WHOLE,
+            "Half": MusicalFigure.HALF,
+            "Quarter": MusicalFigure.QUARTER,
+            "Eighth": MusicalFigure.EIGHTH,
+            "Sixteenth": MusicalFigure.SIXTEENTH,
+            "Thirty-Second": MusicalFigure.THIRTY_SECOND,
+            "Dotted Quarter": MusicalFigure.DOTTED_QUARTER,
+            "Dotted Eighth": MusicalFigure.DOTTED_EIGHTH,
+            "Triplet Quarter": MusicalFigure.TRIPLET_QUARTER,
+            "Triplet Eighth": MusicalFigure.TRIPLET_EIGHTH
+        }
+        
+        figure_name = self.delay_figure_var.get()
+        if figure_name in figure_map:
+            figure = figure_map[figure_name]
+            return musical_figure_to_seconds(figure, self.bpm_var.get())
+        else:
+            # Fallback a Quarter note
+            return musical_figure_to_seconds(MusicalFigure.QUARTER, self.bpm_var.get())
+    
     def on_pattern_change(self):
         """Gestisce il cambio di pattern"""
         pattern_name = self.selected_pattern.get()
@@ -1904,11 +1931,10 @@ class CreativeChordWindow:
                 self.on_playback_finished,
                 # MIDI Effects
                 delay_enabled=self.delay_enabled_var.get(),
-                delay_time=self.delay_time_var.get(),
+                delay_time=self.get_delay_figure_seconds(),
                 delay_feedback=self.delay_feedback_var.get(),
                 delay_mix=self.delay_mix_var.get(),
                 delay_type=self.delay_type_var.get(),
-                delay_velocity=self.delay_velocity_var.get(),
                 delay_repeats=self.delay_repeats_var.get(),
                 octave_add=self.octave_add_var.get(),
                 velocity_curve=self.velocity_curve_var.get(),
